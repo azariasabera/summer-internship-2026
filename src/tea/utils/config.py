@@ -1,4 +1,4 @@
-# src/tea/config.py
+# src/tea/utils/config.py
 
 """Utilities for loading the project's Hydra configuration."""
 
