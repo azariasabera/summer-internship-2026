@@ -1,4 +1,4 @@
-# no deepfilternet
+# no deepfilternet, hydra, omegaconf
 
 name: tea
 channels:
