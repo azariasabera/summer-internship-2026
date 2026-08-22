@@ -1,0 +1,30 @@
+# conf/config.yaml
+
+# Root Hydra config
+# Override from CLI, e.g.:
+#   tea chunk vad.max_segment_duration=8.0 paths.audio_root=/data/audio
+
+defaults:
+  - analysis: analysis
+  - asr: asr
+  - classroom: classroom
+  - confidence: confidence
+  - features: features
+  - mtkd: mtkd
+  - noise: noise
+  - paths: paths
+  - probes: probes
+  - teachers: teachers
+  - vad: vad
+  - _self_
+
+# Global run settings
+seed: 42
+device: cuda   # or cpu
+
+# Hydra run directory (logs land under hydra-logs)
+hydra:
+  run:
+    dir: hydra-logs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  job:
+    chdir: false
