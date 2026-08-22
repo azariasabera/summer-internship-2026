@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tea"
+version = "0.1.0"
+description = "Teacher Emotion Analysis: classroom SER pipeline"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Azarias Galama" }]
+
+[project.scripts]
+tea = "tea.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
