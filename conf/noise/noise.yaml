@@ -1,0 +1,8 @@
+# conf/noise/noise.yml
+
+# Denoising (DeepFilterNet)
+atten_lim_db: 15          # 15 = milder, 0 = stronger attenuation
+long_audio_threshold_sec: 600
+chunk_sec: 60
+overlap_sec: 0.5
+force_chunked: false

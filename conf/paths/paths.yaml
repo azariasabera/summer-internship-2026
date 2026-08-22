@@ -1,0 +1,32 @@
+# conf/paths/paths.yaml
+
+# All filesystem paths. Override per machine without touching code.
+# Prefer symlinks under data/ so recipes stay portable.
+
+# Classroom media (point these at your local copies or symlinks)
+audio_root: data/classroom_audio
+video_root: data/classroom_video
+
+# Annotation CSVs (one per video: <video_id>.csv)
+annotation_root: generated/annotations
+
+# Prediction JSONs produced by MTKD inference
+prediction_root: generated/predictions
+
+# Pooled embeddings (per-video folders with pooled.npy + metadata)
+embedding_root: generated/embeddings
+
+# Text-sentiment JSONs
+sentiment_fi: generated/sentiment/sentiment_fi.json
+sentiment_en: generated/sentiment/sentiment_en.json
+
+# Model checkpoints
+teacher_ckpt_dir: final_models/teachers
+mtkd_student_ckpt: final_models/mtkd_student/MTKD_Multilingual_FI_S6.pth
+classroom_finetune_dir: final_models/classroom_finetuned
+noise_retrain_dir: final_models/noise_retrained
+
+# Outputs
+chunk_meta_dir: generated/chunks
+log_dir: logs
+tmp_dir: tmp
