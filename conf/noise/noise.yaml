@@ -23,5 +23,4 @@ augment:
   snr_min: 15.0
   snr_max: 30.0
   seed: 42
-  # Point at your noise .wav (single short clip, or the full pooled collection)
-  noise_path: data/noise/full_noise.wav
+  noise_path: ${paths.noise_path}

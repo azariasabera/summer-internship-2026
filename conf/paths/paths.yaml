@@ -31,3 +31,6 @@ chunk_meta_dir: generated/chunks
 generated_root: generated
 log_dir: logs
 tmp_dir: tmp
+
+# Noise for augmentation (full pooled collection)
+noise_path: data/noise/full_noise.wav
