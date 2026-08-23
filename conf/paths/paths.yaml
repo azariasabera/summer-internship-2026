@@ -28,5 +28,6 @@ noise_retrain_dir: final_models/noise_retrained
 
 # Outputs
 chunk_meta_dir: generated/chunks
+generated_root: generated
 log_dir: logs
 tmp_dir: tmp
