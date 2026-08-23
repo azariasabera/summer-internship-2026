@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import importlib
 from collections.abc import Sequence
 from typing import Final
 
@@ -37,6 +38,7 @@ VERSION: Final[str] = "0.1.0"
 COMMAND_MODULES: Final[dict[str, str]] = {
     "chunk": "vad",
     "denoise": "noise",
+    "extract-noise": "noise",
     "sentiment": "asr",
     "infer-mtkd": "mtkd",
     "evaluate-classroom": "analysis",
@@ -47,10 +49,20 @@ COMMAND_MODULES: Final[dict[str, str]] = {
     "temporal": "analysis",
 }
 
+# command name -> (module path, function name). Every implemented command
+# must have an entry here; dispatch_command uses this instead of an
+# if/elif chain so adding a command is one line, not a new branch.
+COMMAND_FUNCTIONS: Final[dict[str, tuple[str, str]]] = {
+    "chunk": ("tea.vad", "chunk"),
+    "denoise": ("tea.noise", "denoise"),
+    "extract-noise": ("tea.noise", "extract_noise"),
+}
+
 
 COMMAND_HELP: Final[dict[str, str]] = {
     "chunk": "VAD-based segmentation and optional denoising",
     "denoise": "DeepFilterNet / spectral subtraction on audio",
+    "extract-noise": "Extract non-speech noise chunk paths from annotated videos",
     "sentiment": "Extract FI/EN text-sentiment probabilities",
     "infer-mtkd": "Run MTKD student inference on classroom chunks",
     "evaluate-classroom": "Classroom WAR/UAR/confusion and breakdowns",
@@ -173,24 +185,15 @@ def dispatch_command(command: str, hydra_overrides: Sequence[str]) -> int:
 
     cfg = load_config(hydra_overrides)
 
-    # Test =============================
-    if command == "chunk":
-        from tea.vad import chunk
+    entry = COMMAND_FUNCTIONS.get(command)
+    if entry is None:
+        print()
+        print(f"[tea] Command '{command}' is registered but not yet implemented.")
+        return 0
 
-        return chunk(cfg=cfg)
-
-    if command == "denoise":
-        from tea.noise import denoise
-
-        return denoise(cfg=cfg)
-    # ===================================
-
-    print()
-    print(
-        f"[tea] Command '{command}' is registered but not yet implemented."
-    )
-
-    return 0
+    module_path, func_name = entry
+    func = getattr(importlib.import_module(module_path), func_name)
+    return func(cfg=cfg)
 
 
 if __name__ == "__main__":
