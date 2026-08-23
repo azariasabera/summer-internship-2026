@@ -52,7 +52,7 @@ COMMAND_MODULES: Final[dict[str, str]] = {
 # command name -> (module path, function name). Every implemented command
 # must have an entry here; dispatch_command uses this instead of an
 # if/elif chain so adding a command is one line, not a new branch.
-COMMAND_FUNCTIONS: Final[dict[str, tuple[str, str]]] = {
+CLI_COMMANDS: Final[dict[str, tuple[str, str]]] = {
     "chunk": ("tea.vad", "chunk"),
     "denoise": ("tea.noise", "denoise"),
     "extract-noise": ("tea.noise", "extract_noise"),
@@ -185,7 +185,7 @@ def dispatch_command(command: str, hydra_overrides: Sequence[str]) -> int:
 
     cfg = load_config(hydra_overrides)
 
-    entry = COMMAND_FUNCTIONS.get(command)
+    entry = CLI_COMMANDS.get(command)
     if entry is None:
         print()
         print(f"[tea] Command '{command}' is registered but not yet implemented.")
