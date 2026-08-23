@@ -1,8 +1,27 @@
-# conf/noise/noise.yml
+# conf/noise/noise.yaml
 
-# Denoising (DeepFilterNet)
+# Denoising method: "deepfilter" or "spectral"
+method: deepfilter
+
+# DeepFilterNet
 atten_lim_db: 15          # 15 = milder, 0 = stronger attenuation
 long_audio_threshold_sec: 600
 chunk_sec: 60
 overlap_sec: 0.5
 force_chunked: false
+
+# Spectral subtraction
+spectral:
+  n_fft: 1024
+  hop: 256
+  alpha: 1.0
+  beta: 0.05
+
+# Training-time additive noise augmentation (report Table 21 "retrain" rows)
+augment:
+  contam_prob: 0.5
+  snr_min: 15.0
+  snr_max: 30.0
+  seed: 42
+  # Point at your noise .wav (single short clip, or the full pooled collection)
+  noise_path: data/noise/full_noise.wav
