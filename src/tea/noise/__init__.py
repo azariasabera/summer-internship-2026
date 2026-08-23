@@ -21,7 +21,7 @@ def denoise(cfg: DictConfig) -> int:
     print("[tea] Running audio denoising")
     print()
     print("Noise configuration:")
-    print(OmegaConf.to_yaml(cfg.noise))
+    print(OmegaConf.to_yaml(cfg.noise, resolve=True))
 
     return 0
 
@@ -42,6 +42,6 @@ def extract_noise(cfg: DictConfig) -> int:
     print("[tea] Running noise extraction")
     print()
     print("Noise configuration:")
-    print(OmegaConf.to_yaml(cfg.noise))
+    print(OmegaConf.to_yaml(cfg.noise, resolve=True))
 
     return 0

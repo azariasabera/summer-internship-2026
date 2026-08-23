@@ -21,6 +21,6 @@ def chunk(cfg: DictConfig) -> int:
     print("[tea] Running VAD chunking")
     print()
     print("VAD configuration:")
-    print(OmegaConf.to_yaml(cfg.vad))
+    print(OmegaConf.to_yaml(cfg.vad, resolve=True))
 
     return 0
