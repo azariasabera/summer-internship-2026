@@ -11,10 +11,10 @@ from __future__ import annotations
 
 from omegaconf import DictConfig
 
+from tea.utils.io import vad_json_to_annotation_csv
 from tea.utils.logging import get_logger
 from tea.utils.paths import ensure_dir, resolve
 from tea.vad.segmenter import Segmenter
-
 
 logger = get_logger(__name__)
 
@@ -45,6 +45,14 @@ def chunk(cfg: DictConfig) -> int:
     )
 
     logger.info("Chunked %d file(s).", len(results))
+
+    # Mirror each JSON as an annotation CSV
+    n_csv = 0
+    for json_path in sorted(resolve(out_dir).glob("*.json")):
+        csv_path = resolve(cfg.paths.annotation_root) / f"{json_path.stem}.csv"
+        vad_json_to_annotation_csv(json_path, csv_path)
+        n_csv += 1
+    logger.info("Wrote %d annotation CSV(s) -> %s", n_csv, cfg.paths.annotation_root)
     return 0
 
 
