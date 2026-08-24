@@ -1,3 +1,57 @@
 # conf/classroom/classroom.yaml
 
-# Default classroom config.
+# Videos hard-excluded from every fold (too few annotated chunks to be
+# usable as either train or test data). Kept separately from
+# tea.utils.constants.EXCLUDED_VIDEOS only because this one is also used
+# as a noise-only source (see fesc.noise_extra_videos below) -- same set
+# of ids, two different reasons for the exclusion.
+excluded_videos: ["1B3261"]
+
+cv: loto              # "loto" (leave-one-teacher-out) or an integer for GroupKFold
+internal_val_frac: 0.0  # 0 = fixed-epoch training, no dev split (see classroom_data.internal_val_split docstring)
+
+# --- LOTO fine-tuning defaults (overridden per experiment config below) ---
+epochs: 5
+batch_size: 8
+lr: null                # null -> 2e-6 for variant=full, 1e-4 for variant=head_only
+
+# --- FESC contamination (report Table 16-20) ---
+fesc:
+  augment_classes: [sadness, anger]
+  augment_strategy: "cap" # "cap" | "adaptive"
+  augment_cap_multiplier: 2.5
+  augment_adaptive_alpha: 5.0
+  noise_extra_videos: ["1B3261"]
+  noise_n_sources: [2, 3]     # min/max noise clips composited per augmented sample
+  snr_std_db: 5.0
+  snr_clip_min_db: 10
+  snr_clip_max_db: 30
+
+# --- Room impulse response augmentation ---
+use_rir: false
+
+# --- Experiment configs (Table 16): class weight / confidence weight / FESC ---
+# Matches the report exactly: A=none, B=all, C=class+confidence, D=fesc only,
+# E=class+fesc, F=class only.
+configs:
+  A: {use_class_weight: false, use_confidence_weight: false, augment_fesc: false}
+  B: {use_class_weight: true,  use_confidence_weight: true,  augment_fesc: true}
+  C: {use_class_weight: true,  use_confidence_weight: true,  augment_fesc: false}
+  D: {use_class_weight: false, use_confidence_weight: false, augment_fesc: true}
+  E: {use_class_weight: true,  use_confidence_weight: false, augment_fesc: true}
+  F: {use_class_weight: true,  use_confidence_weight: false, augment_fesc: false}
+
+# Loss-weighting knobs (utils.attach_loss_weight_column)
+confidence_discount: {1: 0.70, 2: 0.85, 3: 1.00}
+augmented_discount: 0.8       # FESC-injected samples count less than real classroom data
+class_weight_clip_max: 6.0    # cap on inverse-frequency class weight
+
+# --- Runtime overrides for `tea finetune-classroom-loto` ---
+run:
+  base_checkpoint: null
+  variant: null        # full | head_only
+  config: null          # A | B | C | D | E | F (report Table 16) -- overrides the 3 switches below if set
+  use_class_weight: false
+  use_confidence_weight: false
+  augment_fesc: false
+  save_model_dir: null
