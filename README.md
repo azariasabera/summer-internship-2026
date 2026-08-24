@@ -32,6 +32,7 @@ cd summer-internship-2026
 The repository provides a Conda environment containing the dependencies required by the project.
 
 ```bash
+conda config --set channel_priority flexible # if it was `strict` before
 conda env create -f environment.yml
 conda activate tea
 ```
