@@ -1,3 +1,41 @@
 # conf/teachers/teachers.yaml
 
-# Default teachers config.
+model_ckpt: facebook/wav2vec2-base
+
+hyperparams:
+  n_epochs: 20
+  learning_rate: 1.0e-5
+  batch_size: 8
+  max_duration_sec: 20.0
+  patience: 6
+
+# language -> max session/split index available for that dataset
+max_session:
+  EN: 5
+  FI: 9
+  FR: 1
+
+# FESC (Finnish) session -> speaker-folder name
+fesc_session_map:
+  1: TIRE
+  2: TIPE
+  3: JARA
+  4: MIKO
+  5: ANRO
+  6: RIGR
+  7: TUVA
+  8: PEKO
+  9: JAKA
+
+# Path fixups: raw json splits store old cluster paths; these are stripped
+# and replaced with paths.datasets_root-relative ones. Update the "old"
+# prefixes only if you have new raw json splits pointing elsewhere.
+fesc_old_prefix: /m/triton/scratch/t405-puhe/p/porjazd1/SER/data/Finnish/16kh_resampled/
+iemocap_old_root: /m/teamwork/t40511_asr/c
+cafe_old_root: /m/teamwork/t40511_asr/c/CaFE/data
+
+checkpoint_name_template: "FT_Monolingual_{language}_S{session}.pth"
+
+# --- Runtime overrides for `tea train-teacher` (null until set on the CLI) ---
+language: null    # EN | FI | FR
+session: null     # 1-5 for EN | 1-9 for FI | 1 for FR
