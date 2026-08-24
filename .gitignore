@@ -53,12 +53,10 @@ multirun/
 *.mp3
 *.flac
 *.mp4
-data/
 datasets/
 checkpoints/
 embeddings/
 runs/
-logs/
 *.log
 
 # --- OS / editor ---
