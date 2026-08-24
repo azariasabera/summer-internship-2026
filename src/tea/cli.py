@@ -37,9 +37,9 @@ VERSION: Final[str] = "0.1.0"
 # Mapping from CLI command names to the module containing the implementation.
 COMMAND_MODULES: Final[dict[str, str]] = {
     "chunk": "vad",
+    "apply-asr": "asr",
     "denoise": "noise",
     "extract-noise": "noise",
-    "apply-asr": "asr",
     "sentiment": "features",
     "infer-mtkd": "mtkd",
     "evaluate-classroom": "analysis",
@@ -55,9 +55,9 @@ COMMAND_MODULES: Final[dict[str, str]] = {
 # if/elif chain so adding a command is one line, not a new branch.
 CLI_COMMANDS: Final[dict[str, tuple[str, str]]] = {
     "chunk": ("tea.vad", "chunk"),
+    "apply-asr": ("tea.asr", "transcribe_annotation_root"),
     "denoise": ("tea.noise", "denoise"),
     "extract-noise": ("tea.noise", "extract_noise"),
-    "apply-asr": ("tea.asr", "transcribe_annotation_root"),
 }
 
 
