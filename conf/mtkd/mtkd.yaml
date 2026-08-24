@@ -1,3 +1,80 @@
 # conf/mtkd/mtkd.yaml
 
-# Default mtkd config.
+model_ckpt: facebook/wav2vec2-base
+
+hyperparams:
+  n_epochs: 10
+  learning_rate: 1.0e-5
+  finetune_lr: 1.0e-6       # used when --mode finetune (continuing an already-trained student)
+  batch_size: 8
+  temperature: 5.0          # KD softmax temperature
+  lambda_param: 0.25        # loss = (1-lambda)*CE + lambda*KL
+  cosine_temp: 0.25         # softmax temperature for per-batch teacher weighting (sharp -> near winner-take-all)
+  max_duration_sec: 20.0
+  seed: 42
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  patience: 5
+
+# Which (session) each teacher was trained on, and where its checkpoint lives.
+teacher_sessions:
+  EN: 2
+  FI: 6
+  FR: 1
+
+# Explicit checkpoint paths
+teacher_checkpoints:
+  EN: ${paths.teacher_ckpt_dir}/FT_Monolingual_EN_S2.pth
+  FI: ${paths.teacher_ckpt_dir}/FT_Monolingual_FI_S6.pth
+  FR: ${paths.teacher_ckpt_dir}/FT_Monolingual_FR_S1.pth
+
+# Sessions mixed in automatically when linguality=Multilingual and the
+# target language's own session is being swept over.
+multilingual_aux_session:
+  EN: 2
+  FI: 6
+  FR: 1
+
+# Default student checkpoint for `tea infer-mtkd` when none is given explicitly.
+default_student_checkpoint: ${paths.mtkd_student_ckpt}
+
+# Inference-time temperature scaling. null (default) = no scaling
+inference_temperature: null
+
+# --- Runtime overrides for `tea train-mtkd` / `evaluate-mtkd` / `calibrate` ---
+linguality: null   # Monolingual | Multilingual
+language: null     # EN | FI | FR
+session: null      # 1-9 for FI | 1-5 for EN | 1 for FR
+mode: train        # train | finetune
+epochs: null       # null -> cfg.mtkd.hyperparams.n_epochs
+lr: null           # null -> cfg.mtkd.hyperparams.learning_rate (or finetune_lr)
+
+# Optional noise-augmented training.
+# Set noise.type to "single" or "full" to enable; contam_prob/snr_min/snr_max
+# fall back to conf/noise/noise.yaml's augment block if left null here.
+noise:
+  type: none       # none | single | full
+  contam_prob: null
+  snr_min: null
+  snr_max: null
+
+# --- Runtime overrides for `tea infer-mtkd` ---
+infer:
+  input: null
+  checkpoint: null
+  output: null
+  annotations_dir: null
+  per_teacher: false
+  batch_size: null
+
+# --- Runtime overrides for `tea extract-embeddings` ---
+embeddings:
+  source: videos     # videos | fesc | iemocap | cafe
+  input_dir: null
+  output_dir: null
+  annotations_dir: null
+  checkpoint: null
+  sessions: all
+  splits: "train,test,dev"
+  layers: ""
+  batch_size: 16
