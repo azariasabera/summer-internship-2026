@@ -11,29 +11,44 @@ The module may contain:
 
 - DeepFilterNet denoising
 - Custom spectral subtraction
-- Noise-segment extraction
-- Noise contamination of benchmark audio
-- Room impulse response (RIR) augmentation, if used
+- Noise-segment extraction from classroom recordings
+- Noise contamination of benchmark audio using NoiseAugmentor during model RETRAINING.
+- Room impulse response (RIR) augmentation for benchmark audio used to augment minority-class samples when FINE-TUNING.
 - Other noise-related experiments
+
+**Note**: Remember augmentation is used in two different contexts:
+
+- First is to retrain the mtkd model by contaminating portions of the benchmark audio with noise.
+- Second is to augment minority-class samples (such as anger and sadness) in the classroom dataset for finetuning.
 
 The exact functionality will be added incrementally as the experiments are
 implemented.
 
-## Planned components
+## Public API
 
-```text
-deepfilter.py
-    DeepFilterNet-based enhancement
+```python
+from tea.noise import Denoiser, SpectralSubtractor, NoiseAugmentor, RIRAugmentor, extract_noise_pool
 
-spectral.py
-    Custom spectral subtraction
+denoiser = Denoiser(cfg)
+clean = denoiser.enhance("audio.wav", output_path="clean.wav", save=True)
 
-extraction.py
-    Extraction of noise segments from benchmark recordings
+subtractor = SpectralSubtractor()
+clean = subtractor.subtract(speech=noisy_chunk, noise=non_speech_reference)
 
-rir.py
-    Room impulse response / reverberation augmentation
+augmentor = NoiseAugmentor(noise_path="data/noise/full_noise.wav", snr_min=15, snr_max=30)
+augmented_waveform, was_contaminated, snr_db = augmentor.augment(waveform)
+
+noise_paths = extract_noise_pool(annotation_root="generated/annotations", video_ids=[...])
+
+# Optional
+rir = RIRAugmentor("data/rir/openslr28", room_sizes=("smallroom", "mediumroom"))
+reverbed = rir.augment(speech_waveform)
 ```
+
+`RIRAugmentor` is used (opt-in only, `classroom.use_rir=true`) by
+`tea.classroom.fesc.contaminate_fesc`, applied to FESC audio before noise
+mixing. It lives here, not in `tea.classroom`, because it's a general
+acoustic-condition transform like the other three classes above.
 
 ## CLI
 
@@ -89,4 +104,8 @@ committed to Git.
 
 ## Status
 
-Scaffold. Implementation is under development.
+Spectral subtraction and the noise-augmented retraining path exist as
+classes but aren't wired to a CLI command yet since they need `tea.analysis`
+(to select per-chunk noise references) and `tea.mtkd` (to actually run a
+training loop) respectively. `RIRAugmentor` is fully wired, opt-in, via
+`tea.classroom.fesc.contaminate_fesc`.
