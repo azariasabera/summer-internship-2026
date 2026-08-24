@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Literal
 
 import torch
 from omegaconf import DictConfig
@@ -28,6 +29,9 @@ from tea.utils.seed import set_seed
 
 logger = get_logger(__name__)
 
+Linguality = Literal["Monolingual", "Multilingual"]
+Language = Literal["EN", "FI", "FR"]
+TrainMode = Literal["train", "finetune"]
 
 class Trainer:
     """Trains an MTKD student against the three frozen teachers.
@@ -82,12 +86,12 @@ class Trainer:
 
     def train(
         self,
-        linguality: str,
-        language: str,
+        linguality: Linguality,
+        language: Language,
         session: int,
         epochs: int | None = None,
         lr: float | None = None,
-        mode: str = "train",
+        mode: str = TrainMode,
         augmentor: NoiseAugmentor | None = None,
         checkpoint_suffix: str = "",
     ) -> Path:
@@ -157,7 +161,7 @@ class Trainer:
                 with open(history_path) as f:
                     history = json.load(f)
 
-        epochs = epochs or hp.n_epochs
+        epochs = hp.n_epochs if epochs is None else epochs
         for epoch in range(start_epoch, start_epoch + epochs):
             train_metrics = engine.train_epoch(student, teachers, perms, train_loader, optimizer, loss_fn, self.device, desc=f"Epoch {epoch} train")
             logger.info("[%d] train loss=%.4f UAR=%.4f WAR=%.4f Acc=%.4f", epoch, train_metrics["loss"], train_metrics["uar"], train_metrics["war"], train_metrics["accuracy"])
