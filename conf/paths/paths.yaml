@@ -21,10 +21,12 @@ sentiment_fi: generated/sentiment/sentiment_fi.json
 sentiment_en: generated/sentiment/sentiment_en.json
 
 # Model checkpoints
-teacher_ckpt_dir: final_models/teachers
-mtkd_student_ckpt: final_models/mtkd_student/MTKD_Multilingual_FI_S6.pth
-classroom_finetune_dir: final_models/classroom_finetuned
-noise_retrain_dir: final_models/noise_retrained
+checkpoint_root: final_models
+teacher_ckpt_dir: ${paths.checkpoint_root}/teachers
+student_ckpt_dir: ${paths.checkpoint_root}/mtkd
+mtkd_student_ckpt: ${paths.student_ckpt_dir}/MTKD_Multilingual_FI_S6.pth
+classroom_finetune_dir: ${paths.checkpoint_root}/classroom_finetuned
+noise_retrain_dir: ${paths.checkpoint_root}/noise_retrained
 
 # Outputs
 chunk_meta_dir: generated/chunks
@@ -34,3 +36,14 @@ tmp_dir: tmp
 
 # Noise for augmentation (full pooled collection)
 noise_path: data/noise/full_noise.wav
+
+# FESC-contaminated augmentation audio cache
+fesc_contaminated_dir: generated/fesc_contaminated
+
+# --- Benchmark dataset splits (FESC / IEMOCAP / CaFE) ---
+# splits_root: the json train/test/dev split files (data.py's SPLITS_DIR)
+# datasets_root: the actual resampled audio referenced by those splits (DATASETS_DIR)
+# cafe_root: CaFE has its own separate audio root (config.CAFE_DIR)
+splits_root: data/datasplits
+datasets_root: data/datasets
+cafe_root: data/datasets/cafe
