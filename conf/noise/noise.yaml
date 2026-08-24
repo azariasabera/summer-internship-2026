@@ -24,3 +24,13 @@ augment:
   snr_max: 30.0
   seed: 42
   noise_path: ${paths.noise_path}
+
+# Room impulse response (RIR) reverb augmentation.
+# `rir_root` must contain an OpenSLR-28-style `simulated_rirs/` subtree.
+rir:
+  enabled: false
+  rir_root: data/rir/openslr28
+  room_sizes: [smallroom, mediumroom]
+  size_weights: [0.7, 0.3]
+  prob: 0.7                    # fraction of augmented samples that get reverb
+  dry_wet_range: [0.35, 0.75]  # randomized per-sample
