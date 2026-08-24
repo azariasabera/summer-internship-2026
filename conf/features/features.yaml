@@ -1,3 +1,3 @@
 # conf/features/features.yaml
 
-# Default features config..
+sentiment_model: cardiffnlp/twitter-xlm-roberta-base-sentiment
