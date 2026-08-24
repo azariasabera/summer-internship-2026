@@ -169,3 +169,76 @@ def add_predictions_to_annotation_csvs(
         df["pred_confidence"] = df["name"].map(lambda n: chunk_preds.get(n, {}).get("score"))
 
         df.to_csv(output_dir / f"{video_id}.csv", index=False)
+
+def vad_json_to_annotation_csv(
+    json_path: str | Path,
+    output_csv: str | Path,
+    chunk_col: str = "name",
+    label_col: str = "gt_label",
+) -> pd.DataFrame:
+    """Convert a VAD segmenter JSON into a per-video annotation CSV.
+
+    The JSON produced by ``tea.vad.Segmenter.chunk_vad`` looks like::
+
+        {
+          "audio_path": "...",
+          "sr": 16000,
+          "total_samples": ...,
+          "segments": [
+            {"start": 3520, "end": 140864, "type": "speech"},
+            {"start": 140864, "end": 300864, "type": "non-speech"},
+            ...
+          ]
+        }
+
+    Writes a CSV with exactly these columns (matching the classroom
+    annotation schema):
+
+        name, duration_sec, start, end, type, gt_label, confidence, overlap
+
+    ``gt_label``, ``confidence`` and ``overlap`` are left as NaN — VAD does
+    not produce emotion labels or confidence scores. Non-speech rows
+    (``gt_label`` NaN) are the ones later picked up by the FESC noise pool.
+
+    Parameters
+    ----------
+    json_path:
+        Path to one VAD JSON file.
+    output_csv:
+        Destination CSV path (parent dirs are created if needed).
+
+    Returns
+    -------
+    pd.DataFrame
+        The table that was written.
+    """
+    json_path = Path(json_path)
+    output_csv = Path(output_csv)
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        meta = json.load(f)
+
+    sr = int(meta.get("sr", 16000))
+    stem = json_path.stem  # e.g. "1B2251_video2"
+
+    rows = []
+    for i, seg in enumerate(meta.get("segments", [])):
+        start = int(seg["start"])
+        end = int(seg["end"])
+        rows.append(
+            {
+                chunk_col: f"{stem}_{i:04d}",
+                "duration_sec": (end - start) / sr,
+                "start": start,
+                "end": end,
+                "type": seg.get("type", "speech"),
+                label_col: np.nan,
+                "confidence": np.nan,
+                "overlap": np.nan,
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    df.to_csv(output_csv, index=False)
+    return df
