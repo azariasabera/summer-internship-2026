@@ -39,7 +39,8 @@ COMMAND_MODULES: Final[dict[str, str]] = {
     "chunk": "vad",
     "denoise": "noise",
     "extract-noise": "noise",
-    "sentiment": "asr",
+    "apply-asr": "asr",
+    "sentiment": "features",
     "infer-mtkd": "mtkd",
     "evaluate-classroom": "analysis",
     "confidence": "confidence",
@@ -56,6 +57,7 @@ CLI_COMMANDS: Final[dict[str, tuple[str, str]]] = {
     "chunk": ("tea.vad", "chunk"),
     "denoise": ("tea.noise", "denoise"),
     "extract-noise": ("tea.noise", "extract_noise"),
+    "apply-asr": ("tea.asr", "transcribe_annotation_root"),
 }
 
 
@@ -63,6 +65,7 @@ COMMAND_HELP: Final[dict[str, str]] = {
     "chunk": "VAD-based segmentation and optional denoising",
     "denoise": "DeepFilterNet / spectral subtraction on audio",
     "extract-noise": "Extract non-speech noise chunk paths from annotated videos",
+    "apply-asr": "Run Whisper ASR (transcribe + translate) on classroom chunks",
     "sentiment": "Extract FI/EN text-sentiment probabilities",
     "infer-mtkd": "Run MTKD student inference on classroom chunks",
     "evaluate-classroom": "Classroom WAR/UAR/confusion and breakdowns",
