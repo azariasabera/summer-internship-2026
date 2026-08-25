@@ -49,3 +49,14 @@ fesc_contaminated_dir: generated/fesc_contaminated
 splits_root: data/datasplits
 datasets_root: data/datasets
 cafe_root: data/datasets/cafe
+
+analysis:
+  analysis_output_dir: generated/analysis
+  plot_save_dir: generated/analysis/emotion_arcs
+
+confidence:
+  confidence_output_dir: generated/confidence
+
+probes:
+  child_speech_out_dir: generated/probes/child_speech
+  feature_fusion_out_dir: generated/probes/feature_fusion
