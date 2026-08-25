@@ -11,6 +11,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from tea.utils.logging import get_logger
+from tea.utils.paths import ensure_dir, resolve
+
+from omegaconf import DictConfig
+
+logger = get_logger(__name__)
+
 
 def get_teacher_id(video_id: str) -> str:
     """Strip a trailing `_videoN` suffix to get the teacher grouping id.
@@ -191,14 +198,16 @@ def vad_json_to_annotation_csv(
           ]
         }
 
-    Writes a CSV with exactly these columns (matching the classroom
-    annotation schema):
+    Writes a CSV using the original classroom annotation naming convention::
 
         name, duration_sec, start, end, type, gt_label, confidence, overlap
 
-    ``gt_label``, ``confidence`` and ``overlap`` are left as NaN — VAD does
-    not produce emotion labels or confidence scores. Non-speech rows
-    (``gt_label`` NaN) are the ones later picked up by the FESC noise pool.
+    Chunk names follow the original convention:
+
+        speech     -> chunk_s_0, chunk_s_1, ...
+        non-speech -> chunk_n_0, chunk_n_1, ...
+
+    ``gt_label``, ``confidence`` and ``overlap`` are left as NaN.
 
     Parameters
     ----------
@@ -220,25 +229,132 @@ def vad_json_to_annotation_csv(
         meta = json.load(f)
 
     sr = int(meta.get("sr", 16000))
-    stem = json_path.stem  # e.g. "1B2251_video2"
 
     rows = []
     for i, seg in enumerate(meta.get("segments", [])):
         start = int(seg["start"])
         end = int(seg["end"])
+        segment_type = seg.get("type", "speech")
+
+        # Original annotation convention:
+        # speech     -> chunk_s_N
+        # non-speech -> chunk_n_N
+        prefix = "s" if segment_type == "speech" else "n"
+
         rows.append(
             {
-                chunk_col: f"{stem}_{i:04d}",
+                chunk_col: f"chunk_{prefix}_{i}",
                 "duration_sec": (end - start) / sr,
                 "start": start,
                 "end": end,
-                "type": seg.get("type", "speech"),
+                "type": segment_type,
                 label_col: np.nan,
                 "confidence": np.nan,
                 "overlap": np.nan,
             }
         )
 
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(
+        rows,
+        columns=[
+            chunk_col,
+            "duration_sec",
+            "start",
+            "end",
+            "type",
+            label_col,
+            "confidence",
+            "overlap",
+        ],
+    )
+
     df.to_csv(output_csv, index=False)
     return df
+
+_ANNOTATION_COLS = ("gt_label", "confidence", "overlap")
+
+def merge_annotations(cfg: DictConfig) -> int:
+    """Merge ``gt_label``, ``confidence``, ``overlap`` from prepared CSVs.
+
+    Typical layout
+    --------------
+    - ``paths.prepared_annotation_root`` (e.g. ``data/annotations``) holds the
+      internship CSVs already labelled by you.
+    - ``paths.annotation_root`` (e.g. ``generated/annotations``) holds the
+      CSVs produced by ``tea chunk`` (and optionally already ASR-filled).
+
+    Matching is by the ``name`` column (chunk id). Rows present only in the
+    generated CSV keep NaN labels; rows only in the prepared CSV are ignored.
+
+    Returns
+    -------
+    int
+        Process exit status (0 on success).
+    """
+    prepared_root = resolve(cfg.paths.prepared_annotation_root)
+    target_root = ensure_dir(resolve(cfg.paths.annotation_root))
+
+    if not prepared_root.is_dir():
+        logger.error("Prepared annotation root does not exist: %s", prepared_root)
+        return 1
+
+    prepared_files = sorted(prepared_root.glob("*.csv"))
+    if not prepared_files:
+        logger.error("No CSV files under %s", prepared_root)
+        return 1
+
+    n_ok = 0
+    for prep_path in prepared_files:
+        video_id = prep_path.stem
+        target_path = target_root / f"{video_id}.csv"
+
+        prep = pd.read_csv(prep_path)
+        if "name" not in prep.columns:
+            logger.warning("Skip %s: no 'name' column", prep_path.name)
+            continue
+
+        missing_cols = [c for c in _ANNOTATION_COLS if c not in prep.columns]
+        if missing_cols:
+            logger.warning(
+                "Skip %s: prepared CSV missing columns %s",
+                prep_path.name,
+                missing_cols,
+            )
+            continue
+
+        if target_path.exists():
+            target = pd.read_csv(target_path)
+            if "name" not in target.columns:
+                logger.warning("Skip %s: target has no 'name' column", target_path.name)
+                continue
+            # Drop any previous label columns so the merge is clean.
+            drop = [c for c in _ANNOTATION_COLS if c in target.columns]
+            if drop:
+                target = target.drop(columns=drop)
+            merged = target.merge(
+                prep[["name", *_ANNOTATION_COLS]],
+                on="name",
+                how="left",
+            )
+        else:
+            # No VAD CSV yet — copy prepared as the starting annotation table.
+            logger.info(
+                "No generated CSV for %s; copying prepared file into %s",
+                video_id,
+                target_root,
+            )
+            merged = prep.copy()
+
+        merged.to_csv(target_path, index=False)
+        n_labelled = int(merged["gt_label"].notna().sum()) if "gt_label" in merged.columns else 0
+        logger.info(
+            "  %s: %d / %d rows have gt_label -> %s",
+            video_id,
+            n_labelled,
+            len(merged),
+            target_path,
+        )
+        n_ok += 1
+
+    logger.info("Merged annotations for %d video(s).", n_ok)
+    return 0 if n_ok else 1
