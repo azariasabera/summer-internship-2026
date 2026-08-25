@@ -1,202 +1,201 @@
 """
-Top-level command-line interface for the Teacher Emotion Analysis (tea) project.
+Top-level command-line interface for Teacher Emotion Analysis (tea).
 
-The `tea` command provides a stable interface for running pipeline stages
-and passing Hydra configuration overrides.
+Commands are listed in **pipeline dependency order**. Run ``tea --help`` to
+see the full list, or read ``doc/pipeline.md`` for the recommended sequence.
 
 Examples
 --------
-Run a command with default configuration:
+::
 
     tea chunk
-
-Override Hydra configuration values:
-
-    tea chunk vad.overlap=1.0
-    tea chunk vad.max_segment_duration=8.0
-
-Show the available commands:
-
-    tea --help
+    tea merge-annotations
+    tea apply-asr
+    tea infer-mtkd
+    tea evaluate-classroom
 """
 
 from __future__ import annotations
 
 import argparse
-import sys
 import importlib
+import sys
+import textwrap
 from collections.abc import Sequence
 from typing import Final
 
 from tea.utils.config import load_config
 
-
 VERSION: Final[str] = "0.1.0"
 
+# ---------------------------------------------------------------------------
+# Pipeline stages (order = dependency order for everyday reproduction)
+# ---------------------------------------------------------------------------
 
-# Mapping from CLI command names to the module containing the implementation.
-COMMAND_MODULES: Final[dict[str, str]] = {
-    "chunk": "vad",
-    "apply-asr": "asr",
-    "denoise": "noise",
-    "extract-noise": "noise",
-    "sentiment": "features",
-    "infer-mtkd": "mtkd",
-    "evaluate-classroom": "analysis",
-    "confidence": "confidence",
-    "probe-child-speech": "probes",
-    "probe-feature-fusion": "probes",
-    "noise-analysis": "analysis",
-    "temporal": "analysis",
-}
+_STAGE1: Final[list[tuple[str, str, str, str]]] = [
+    ("chunk", "tea.vad", "chunk", "VAD segmentation -> generated/chunks + annotation CSVs"),
+    (
+        "merge-annotations",
+        "tea.utils.io",
+        "merge_annotations",
+        "Copy gt_label / confidence / overlap from prepared CSVs into generated annotations",
+    ),
+    ("denoise", "tea.noise", "denoise", "DeepFilterNet or spectral subtraction (optional)"),
+    ("extract-noise", "tea.noise", "extract_noise", "Build non-speech noise pool from annotated videos"),
+    ("apply-asr", "tea.asr", "transcribe_annotation_root", "Whisper transcribe + translate on speech chunks"),
+    ("sentiment", "tea.features", "sentiment_cli", "FI/EN text-sentiment probabilities from transcripts"),
+]
 
-# command name -> (module path, function name). Every implemented command
-# must have an entry here; dispatch_command uses this instead of an
-# if/elif chain so adding a command is one line, not a new branch.
+_STAGE2: Final[list[tuple[str, str, str, str]]] = [
+    ("infer-mtkd", "tea.mtkd", "infer_mtkd", "MTKD student inference -> pred_label / scores on CSVs"),
+    (
+        "extract-embeddings",
+        "tea.mtkd.embeddings",
+        "extract_embeddings_cli",
+        "Pooled WavLM embeddings for probes (optional)",
+    ),
+]
+
+_STAGE3: Final[list[tuple[str, str, str, str]]] = [
+    (
+        "evaluate-classroom",
+        "tea.analysis",
+        "evaluate_classroom_cli",
+        "WAR / UAR / confusion + child-speech / confidence breakdowns",
+    ),
+    ("temporal", "tea.analysis", "temporal_cli", "Temporal consistency scores + smoothed emotion arcs"),
+    ("noise-analysis", "tea.analysis", "noise_analysis_cli", "Noise filtering / augmentation distribution tables"),
+    (
+        "acoustic-by-emotion",
+        "tea.analysis.acoustic_by_emotion",
+        "acoustic_by_emotion_cli",
+        "Acoustic feature box-plots by predicted emotion",
+    ),
+    ("confidence", "tea.confidence", "confidence_cli", "Binary / TCP / instance-temperature reliability"),
+    ("probe-child-speech", "tea.probes", "probe_child_speech_cli", "Child-speech logistic probe on embeddings"),
+    (
+        "probe-feature-fusion",
+        "tea.probes",
+        "probe_feature_fusion_cli",
+        "Handcrafted + embedding feature-fusion tables",
+    ),
+]
+
+_STAGE4: Final[list[tuple[str, str, str, str]]] = [
+    ("train-teacher", "tea.teachers", "train_teacher", "Monolingual teacher fine-tune (Triton)"),
+    ("train-mtkd", "tea.mtkd", "train_mtkd_cli", "Multilingual MTKD student train (Triton)"),
+    (
+        "finetune-classroom",
+        "tea.classroom.finetune",
+        "finetune_classroom_cli",
+        "LOTO classroom fine-tune configs A-F (Triton)",
+    ),
+]
+
+_STAGE5: Final[list[tuple[str, str, str, str]]] = [
+    (
+        "evaluate-mtkd",
+        "tea.mtkd",
+        "evaluate_classroom",
+        "Evaluate a student checkpoint on held-out benchmark splits",
+    ),
+    ("calibrate", "tea.mtkd", "calibrate_cli", "Temperature / bias calibration of a student checkpoint"),
+]
+
+_ALL_STAGES: Final[list[tuple[str, list[tuple[str, str, str, str]]]]] = [
+    ("1. Data preparation", _STAGE1),
+    ("2. Inference (frozen checkpoints)", _STAGE2),
+    ("3. Analysis / probes / confidence", _STAGE3),
+    ("4. Training (Triton / GPU)", _STAGE4),
+    ("5. Checkpoint evaluation helpers", _STAGE5),
+]
+
 CLI_COMMANDS: Final[dict[str, tuple[str, str]]] = {
-    "chunk": ("tea.vad", "chunk"),
-    "apply-asr": ("tea.asr", "transcribe_annotation_root"),
-    "denoise": ("tea.noise", "denoise"),
-    "extract-noise": ("tea.noise", "extract_noise"),
+    name: (mod, fn) for _, stage in _ALL_STAGES for name, mod, fn, _ in stage
 }
-
 
 COMMAND_HELP: Final[dict[str, str]] = {
-    "chunk": "VAD-based segmentation and optional denoising",
-    "denoise": "DeepFilterNet / spectral subtraction on audio",
-    "extract-noise": "Extract non-speech noise chunk paths from annotated videos",
-    "apply-asr": "Run Whisper ASR (transcribe + translate) on classroom chunks",
-    "sentiment": "Extract FI/EN text-sentiment probabilities",
-    "infer-mtkd": "Run MTKD student inference on classroom chunks",
-    "evaluate-classroom": "Classroom WAR/UAR/confusion and breakdowns",
-    "confidence": "Binary / TCP / instance-temperature confidence",
-    "probe-child-speech": "Child-speech logistic probe on embeddings",
-    "probe-feature-fusion": "Handcrafted feature fusion experiments",
-    "noise-analysis": "Noise filtering and augmentation distribution tables",
-    "temporal": "Temporal consistency and smoothed emotion arcs",
+    name: help_ for _, stage in _ALL_STAGES for name, _, _, help_ in stage
 }
+
+
+def _epilog() -> str:
+    lines = [
+        "Pipeline order (run top -> bottom for full classroom reproduction):",
+        "",
+    ]
+    for title, stage in _ALL_STAGES:
+        lines.append(f"  {title}")
+        for name, _, _, help_ in stage:
+            lines.append(f"    tea {name:<22}  {help_}")
+        lines.append("")
+    lines.append("See doc/pipeline.md for inputs/outputs of each step.")
+    return "\n".join(lines)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build and return the top-level `tea` argument parser.
-
-    Returns
-    -------
-    argparse.ArgumentParser
-        Configured argument parser for the project CLI.
-    """
     parser = argparse.ArgumentParser(
         prog="tea",
-        description="Teacher Emotion Analysis: classroom SER pipeline",
+        description="Teacher Emotion Analysis -- classroom SER pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=textwrap.dedent(_epilog()),
     )
+    parser.add_argument("--version", action="version", version=f"tea {VERSION}")
 
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"tea {VERSION}",
-    )
+    sub = parser.add_subparsers(dest="command", title="commands", metavar="<command>")
 
-    subparsers = parser.add_subparsers(
-        dest="command",
-        title="commands",
-        metavar="<command>",
-    )
-
-    for command, help_text in COMMAND_HELP.items():
-        subparser = subparsers.add_parser(
-            command,
-            help=help_text,
-            description=help_text,
-        )
-
-        subparser.add_argument(
+    for name, help_text in COMMAND_HELP.items():
+        p = sub.add_parser(name, help=help_text, description=help_text)
+        p.add_argument(
             "hydra_overrides",
             nargs="*",
             metavar="KEY=VALUE",
-            help="Hydra configuration overrides, e.g. vad.overlap=1.5",
+            help="Hydra overrides, e.g. paths.audio_root=/data/audio",
         )
 
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the `tea` command-line interface.
-
-    Parameters
-    ----------
-    argv:
-        Command-line arguments. If `None`, arguments are read from `sys.argv`.
-
-    Returns
-    -------
-    int
-        Process exit status. `0` indicates success.
-    """
     parser = build_parser()
-    args: argparse.Namespace = parser.parse_args(argv)
+    args = parser.parse_args(argv)
 
     if args.command is None:
         parser.print_help()
         return 0
 
-    return dispatch_command(
-        command=args.command,
-        hydra_overrides=args.hydra_overrides,
-    )
+    return dispatch_command(args.command, args.hydra_overrides)
 
 
 def dispatch_command(command: str, hydra_overrides: Sequence[str]) -> int:
-    """Dispatch a CLI command to its implementation.
-
-    Parameters
-    ----------
-    command:
-        Name of the pipeline command, such as "chunk".
-    hydra_overrides:
-        Hydra-style configuration overrides such as ["vad.overlap=1.5"].
-
-    Returns
-    -------
-    int
-        Process exit status.
-
-    Notes
-    -----
-    The actual pipeline implementations are not wired yet. This function
-    currently provides the dispatch boundary that will later connect the
-    CLI to the corresponding module.
-    """
-    module = COMMAND_MODULES.get(command)
-
-    if module is None:
-        print(
-            f"[tea] Unknown command: {command}",
-            file=sys.stderr,
-        )
+    if command not in CLI_COMMANDS:
+        print(f"[tea] Unknown command: {command}", file=sys.stderr)
         return 2
 
     print(f"[tea] Command: {command}")
-    print(f"[tea] Module: src/tea/{module}/")
-
     if hydra_overrides:
         print("[tea] Hydra overrides:")
-        for override in hydra_overrides:
-            print(f"      {override}")
+        for o in hydra_overrides:
+            print(f"      {o}")
     else:
         print("[tea] Hydra overrides: none")
 
-
     cfg = load_config(hydra_overrides)
+    module_path, func_name = CLI_COMMANDS[command]
 
-    entry = CLI_COMMANDS.get(command)
-    if entry is None:
-        print()
-        print(f"[tea] Command '{command}' is registered but not yet implemented.")
-        return 0
+    try:
+        mod = importlib.import_module(module_path)
+        func = getattr(mod, func_name)
+    except (ImportError, AttributeError) as exc:
+        print(
+            f"[tea] Failed to load {module_path}.{func_name}: {exc}\n"
+            f"      Is the module implemented and installed (`pip install -e .`)?",
+            file=sys.stderr,
+        )
+        return 1
 
-    module_path, func_name = entry
-    func = getattr(importlib.import_module(module_path), func_name)
-    return func(cfg=cfg)
+    result = func(cfg=cfg)
+    return int(result) if result is not None else 0
 
 
 if __name__ == "__main__":
