@@ -1,3 +1,21 @@
 # conf/analysis/analysis.yaml
 
-# Default analysis config.
+# Shared across evaluate-classroom / acoustic-by-emotion / temporal
+mtkd_json: null          # required: MTKD prediction JSON path
+three_class: false       # evaluate-classroom: also report the 3-class polarity comparison
+audio_root: null         # acoustic-by-emotion: full per-video audio (not chunks) -- loudness skipped if unset
+output_dir: ${paths.analysis.analysis_output_dir}
+
+# noise-analysis (report Table 21)
+noise_conditions: null   # mapping of condition name -> prediction json path
+check_non_speech: false  # also report each condition's non-speech-chunk prediction distribution
+
+emotion_arc:
+  video: 1B2251  # specify the videoID
+  plot_save_dir: ${paths.analysis.plot_save_dir}
+  ma:
+    window: 5
+  gaussian:
+    sigma: 2.0
+    radius: null  # if None, radius = round(sigma*truncate), and kernel-width is 2*radius+1
+    truncate: 4.0
