@@ -1,3 +1,16 @@
 # conf/probes/probes.yaml
 
-# Default probes config.
+child_speech:
+  embedding_root: null   # defaults to paths.embedding_root
+  n_splits: 5
+  C: 1.0
+  max_iter: 1000
+  output_dir: ${paths.probes.child_speech_out_dir}
+
+feature_fusion:
+  mtkd_json: null           # required
+  sentiment_fi_json: null   # required
+  sentiment_en_json: null
+  embedding_root: null      # defaults to paths.embedding_root
+  base: null                 # null -> run both "softmax" and "embedding"; or restrict to one
+  output_dir: ${paths.probes.feature_fusion_out_dir}
