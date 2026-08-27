@@ -91,10 +91,19 @@ class Transcriber:
             loaded, batch_size=batch_size, generate_kwargs={"language": language, "task": "translate"}
         )
 
-    def close(self) -> None:
-        """Release the pipeline and free CUDA memory (call when done with this instance)."""
-        del self.pipe
+    def clean(self) -> None:
+        """Clean up unused objects and cached CUDA memory.
+
+        Keeps the pipeline and its model alive.
+        """
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-            torch.cuda.reset_peak_memory_stats()
+
+    def close(self) -> None:
+        """Release the pipeline and clean up unused CUDA memory.
+
+        After this call, the pipeline is no longer available.
+        """
+        self.pipe = None
+        self.clean()
