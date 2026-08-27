@@ -1,3 +1,5 @@
+# src/tea/asr/__init__.py
+
 """Whisper-based transcription and translation.
 
 Ported from `vad_chunking.txt` (`asr.py`). Loads Whisper-large-v3 via the HF
@@ -77,6 +79,7 @@ def transcribe_annotation_root(cfg: DictConfig) -> int:
     language = cfg.asr.get("language", "fi") if cfg.get("asr") else "fi"
     batch_size = int(cfg.asr.get("batch_size", 8)) if cfg.get("asr") else 8
     model_path = cfg.asr.get("model", None) if cfg.get("asr") else None
+    sr = cfg.vad.get("sample_rate", 16_000) if cfg.get("vad") else 16_000
 
     csv_paths = sorted(annotation_root.glob("*.csv"))
     if not csv_paths:
@@ -105,12 +108,14 @@ def transcribe_annotation_root(cfg: DictConfig) -> int:
                 df.to_csv(csv_path, index=False)
                 continue
 
-            waveform, sr = librosa.load(str(audio_path), sr=16_000)
+            waveform, _ = librosa.load(str(audio_path), sr=sr)
 
             # Collect speech slices
-            speech_mask = df["type"].astype(str).str.lower().eq("speech")
+            #speech_mask = df["type"].astype(str).str.lower().eq("speech") # based on type="speech"
+            speech_mask = df["gt_label"].notna() # based on gt_label exists
             speech_indices = df.index[speech_mask].tolist()
             slices: list[np.ndarray] = []
+
             for idx in speech_indices:
                 start = int(df.at[idx, "start"])
                 end = int(df.at[idx, "end"])
@@ -121,7 +126,7 @@ def transcribe_annotation_root(cfg: DictConfig) -> int:
             transcriptions = [""] * len(df)
             translations = [""] * len(df)
 
-            if slices:
+            """if slices:
                 # Batch transcribe / translate
                 tr_out = transcriber.transcribe_batch(slices, sr=sr, language=language, batch_size=1)
                 tl_out = transcriber.translate_batch(slices, sr=sr, language=language, batch_size=1)
@@ -129,7 +134,15 @@ def transcribe_annotation_root(cfg: DictConfig) -> int:
                 # pipeline returns list[dict] with key "text"
                 for i, idx in enumerate(speech_indices):
                     transcriptions[idx] = tr_out[i]["text"].strip() if isinstance(tr_out[i], dict) else str(tr_out[i]).strip()
-                    translations[idx] = tl_out[i]["text"].strip() if isinstance(tl_out[i], dict) else str(tl_out[i]).strip()
+                    translations[idx] = tl_out[i]["text"].strip() if isinstance(tl_out[i], dict) else str(tl_out[i]).strip()"""
+
+            if slices:
+                for idx, aud in zip(speech_indices, slices):
+                    tr_txt = transcriber.transcribe(audio=aud, sr=sr, language=language)
+                    tl_txt = transcriber.translate(audio=aud, sr=sr, language=language)
+
+                    transcriptions[idx] = tr_txt.strip()
+                    translations[idx] = tl_txt.strip()
 
             df["transcription"] = transcriptions
             df["translation"] = translations
@@ -148,9 +161,7 @@ def transcribe_annotation_root(cfg: DictConfig) -> int:
             n_speech = int(speech_mask.sum())
             logger.info("  %s: %d speech / %d total rows transcribed", video_id, n_speech, len(df))
 
-            gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            transcriber.clean()
 
     finally:
         transcriber.close()
