@@ -82,7 +82,6 @@ def extract_noise(cfg: DictConfig) -> int:
     sample_rate = int(cfg.noise.extraction.get("sample_rate", 16_000))
 
     if save_audio:
-        audio_dir = ensure_dir(resolve(cfg.paths.noise.extraction.save_audio_dir))
         noise_chunks = []
 
         for item in pool:
@@ -96,7 +95,7 @@ def extract_noise(cfg: DictConfig) -> int:
         rng = np.random.default_rng(int(cfg.get("seed", 42)))
         rng.shuffle(noise_chunks)   
         noise_audio = np.concatenate(noise_chunks)
-        noise_path = audio_dir / "full_noise.wav"
+        noise_path = out_dir / "full_noise.wav"
         sf.write(noise_path, noise_audio, sample_rate)
 
     with open(out_path, "w", encoding="utf-8") as f:

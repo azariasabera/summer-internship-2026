@@ -26,7 +26,6 @@ annotation_root: ${paths.generated_root}/annotations
 noise:
   noise_extract_path: ${paths.data}/noise/full_noise.wav
   noise_extract_save_dir: ${paths.generated_root}/noise
-  noise_extract_audio_save_dir: ${paths.noise.noise_extract_save_dir}/audio
 
 # Prediction JSONs produced by MTKD inference
 prediction_root: ${paths.generated_root}/predictions

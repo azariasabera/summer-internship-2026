@@ -38,4 +38,3 @@ rir:
 extraction:
   save_audio: false # whether noise extraction only saves the meta-data or the audio too.
   sample_rate: 16000
-  save_audio_dir:  ${paths.noise.noise_extract_audio_save_dir}
