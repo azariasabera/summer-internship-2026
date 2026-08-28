@@ -14,12 +14,10 @@ import numpy as np
 import pandas as pd
 from omegaconf import DictConfig
 
-import torch
-import gc
-
 from tea.asr.transcriber import Transcriber
 from tea.utils.logging import get_logger
 from tea.utils.paths import resolve
+from tea.utils.io import merge_asr_annotations
 
 logger = get_logger(__name__)
 
@@ -78,8 +76,13 @@ def transcribe_annotation_root(cfg: DictConfig) -> int:
     chunk_meta_dir = Path(resolve(cfg.paths.chunk_meta_dir)) if cfg.paths.get("chunk_meta_dir") else None
     language = cfg.asr.get("language", "fi") if cfg.get("asr") else "fi"
     batch_size = int(cfg.asr.get("batch_size", 8)) if cfg.get("asr") else 8
-    model_path = cfg.asr.get("model", None) if cfg.get("asr") else None
+    model_path = cfg.asr.get("asr_model", None) if cfg.get("asr") else None
     sr = cfg.vad.get("sample_rate", 16_000) if cfg.get("vad") else 16_000
+
+    use_precomputed = cfg.asr.get("use_precomputed", False) if cfg.get("asr") else False
+
+    if use_precomputed:
+        return merge_asr_annotations(cfg=cfg)
 
     csv_paths = sorted(annotation_root.glob("*.csv"))
     if not csv_paths:
