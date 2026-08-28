@@ -82,7 +82,29 @@ def extract_noise(cfg: DictConfig) -> int:
     sample_rate = int(cfg.noise.extraction.get("sample_rate", 16_000))
 
     if save_audio:
-        noise_chunks = []
+        noise_path = out_dir / "full_noise.wav"
+
+        rng = np.random.default_rng(int(cfg.get("seed", 42)))
+        shuffled_pool = pool.copy()
+        rng.shuffle(shuffled_pool)
+
+        with sf.SoundFile(noise_path, mode="w", samplerate=sample_rate, channels=1, subtype="PCM_16") as f:
+            for item in shuffled_pool:
+                audio_path = item["audio_path"]
+                start = int(item["start"])
+                end = int(item["end"])
+
+                waveform, _ = librosa.load(
+                    audio_path,
+                    sr=sample_rate,
+                    mono=True,
+                    offset=start / sample_rate,
+                    duration=(end - start) / sample_rate,
+                )
+
+                f.write(waveform)
+
+        """noise_chunks = []
 
         for item in pool:
             audio_path = item["audio_path"]
@@ -96,7 +118,7 @@ def extract_noise(cfg: DictConfig) -> int:
         rng.shuffle(noise_chunks)   
         noise_audio = np.concatenate(noise_chunks)
         noise_path = out_dir / "full_noise.wav"
-        sf.write(noise_path, noise_audio, sample_rate)
+        sf.write(noise_path, noise_audio, sample_rate)"""
 
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(pool, f, indent=2)
