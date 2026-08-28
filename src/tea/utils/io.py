@@ -40,7 +40,9 @@ def get_teacher_id(video_id: str) -> str:
     return re.sub(r"_video\d+$", "", video_id)
 
 
-def load_annotation_csvs(annotation_root: str | Path, exclude: set[str] | None = None) -> pd.DataFrame:
+def load_annotation_csvs(annotation_root: str | Path, exclude: set[str] | None = None,
+                         add_audio_path: bool = False, json_dir: str | Path | None = None,
+                         ) -> pd.DataFrame:
     """Load and concatenate every per-video annotation CSV into one DataFrame.
 
     Parameters
@@ -49,15 +51,23 @@ def load_annotation_csvs(annotation_root: str | Path, exclude: set[str] | None =
         Directory containing one CSV per video (`<video_id>.csv`).
     exclude:
         Video ids to skip (e.g. `constants.EXCLUDED_VIDEOS`).
-
+    add_audio_path:
+        If True, add an `audio_path` column using the `audio_path` stored
+        in the corresponding VAD JSON metadata.
+    json_dir:
+        Directory containing the VAD JSON metadata files. Required when
+        `add_audio_path=True`
     Returns
     -------
     pd.DataFrame
-        Concatenated table with an added `video` column (the CSV's stem)
-        and a `teacher` column (via `get_teacher_id`).
+        Concatenated annotation table with an added `video` column and `teacher`
+        column. If `add_audio_path` is True, also includes `audio_path`.
     """
     exclude = exclude or set()
     root = Path(annotation_root)
+
+    if add_audio_path and json_dir is None:
+        raise ValueError("json_dir must be provided when add_audio_path=True")
 
     frames = []
     for csv_path in sorted(root.glob("*.csv")):
@@ -68,6 +78,22 @@ def load_annotation_csvs(annotation_root: str | Path, exclude: set[str] | None =
         df = pd.read_csv(csv_path)
         df["video"] = video_id
         df["teacher"] = get_teacher_id(video_id)
+
+        if add_audio_path:
+            json_path = json_dir / f"{video_id}.json"
+
+            if not json_path.exists():
+                raise FileNotFoundError(f"Chunk metadata not found for {video_id}: {json_path}")
+
+            with open(json_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+
+            audio_path = meta.get("audio_path")
+            if audio_path is None:
+                raise KeyError(f"'audio_path' missing from chunk metadata: {json_path}")
+
+            df["audio_path"] = audio_path
+
         frames.append(df)
 
     if not frames:
