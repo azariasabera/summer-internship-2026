@@ -1,3 +1,6 @@
 # conf/asr/asr.yaml
 
-# Default asr config.
+asr_model: openai/whisper-large-v3
+batch_size: 8
+language: fi
+use_precomputed: false # Whether to run Whisper or to add the tranlation and transcription columns directly from the already prepared document.
