@@ -34,3 +34,8 @@ rir:
   size_weights: [0.7, 0.3]
   prob: 0.7                    # fraction of augmented samples that get reverb
   dry_wet_range: [0.35, 0.75]  # randomized per-sample
+
+extraction:
+  save_audio: false # whether noise extraction only saves the meta-data or the audio too.
+  sample_rate: 16000
+  save_audio_dir:  ${paths.noise.noise_extract_audio_save_dir}
