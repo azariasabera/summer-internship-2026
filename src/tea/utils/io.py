@@ -80,7 +80,7 @@ def load_annotation_csvs(annotation_root: str | Path, exclude: set[str] | None =
         df["teacher"] = get_teacher_id(video_id)
 
         if add_audio_path:
-            json_path = json_dir / f"{video_id}.json"
+            json_path = resolve(json_dir) / f"{video_id}.json"
 
             if not json_path.exists():
                 raise FileNotFoundError(f"Chunk metadata not found for {video_id}: {json_path}")

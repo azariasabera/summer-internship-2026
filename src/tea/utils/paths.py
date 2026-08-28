@@ -16,7 +16,7 @@ from pathlib import Path
 from omegaconf import DictConfig
 
 
-def resolve(path_value: str) -> Path:
+def resolve(path_value: str | Path) -> Path:
     """Turn a config path string into a `Path`, expanding `~`.
 
     Parameters
