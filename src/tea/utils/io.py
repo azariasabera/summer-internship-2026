@@ -274,22 +274,16 @@ def vad_json_to_annotation_csv(
 _ANNOTATION_COLS = ("gt_label", "confidence", "overlap")
 
 def merge_annotations(cfg: DictConfig) -> int:
-    """Merge ``gt_label``, ``confidence``, ``overlap`` from prepared CSVs.
+    """Merge `gt_label`, `confidence`, `overlap` from prepared CSVs.
 
     Typical layout
     --------------
-    - ``paths.prepared_annotation_root`` (e.g. ``data/annotations``) holds the
+    - `paths.prepared_annotation_root` (e.g. `data/annotations`) holds the
       internship CSVs already labelled by you.
-    - ``paths.annotation_root`` (e.g. ``generated/annotations``) holds the
-      CSVs produced by ``tea chunk`` (and optionally already ASR-filled).
+    - `paths.annotation_root` (e.g. `generated/annotations`) holds the
+      CSVs produced by `tea chunk`.
 
-    Matching is by the ``name`` column (chunk id). Rows present only in the
-    generated CSV keep NaN labels; rows only in the prepared CSV are ignored.
-
-    Returns
-    -------
-    int
-        Process exit status (0 on success).
+    Matching is by the `name` column (chunk id).
     """
     prepared_root = resolve(cfg.paths.prepared_annotation_root)
     target_root = ensure_dir(resolve(cfg.paths.annotation_root))
@@ -337,7 +331,7 @@ def merge_annotations(cfg: DictConfig) -> int:
                 how="left",
             )
         else:
-            # No VAD CSV yet — copy prepared as the starting annotation table.
+            # No VAD CSV yet, so copy prepared as the starting annotation table.
             logger.info(
                 "No generated CSV for %s; copying prepared file into %s",
                 video_id,
@@ -357,4 +351,75 @@ def merge_annotations(cfg: DictConfig) -> int:
         n_ok += 1
 
     logger.info("Merged annotations for %d video(s).", n_ok)
+    return 0 if n_ok else 1
+
+def merge_asr_annotations(cfg: DictConfig) -> int:
+    """Merge `transcription` and `translation` from prepared CSVs.
+
+    Typical layout
+    --------------
+    - `paths.prepared_annotation_root` (e.g. `data/annotations`) holds the
+      prepared CSVs containing transcription and translation.
+    - `paths.annotation_root` (e.g. `generated/annotations`) holds the
+      CSVs produced by `tea chunk` (and optionally already ASR-filled).
+
+    Matching is by the `name` column (chunk id).
+    """
+    prepared_root = resolve(cfg.paths.prepared_annotation_root)
+    target_root = ensure_dir(resolve(cfg.paths.annotation_root))
+
+    if not prepared_root.is_dir():
+        logger.error("Prepared annotation root does not exist: %s", prepared_root)
+        return 1
+
+    prepared_files = sorted(prepared_root.glob("*.csv"))
+    if not prepared_files:
+        logger.error("No CSV files under %s", prepared_root)
+        return 1
+
+    asr_cols = ["transcription", "translation"]
+
+    n_ok = 0
+    for prep_path in prepared_files:
+        video_id = prep_path.stem
+        target_path = target_root / f"{video_id}.csv"
+
+        prep = pd.read_csv(prep_path)
+        if "name" not in prep.columns:
+            logger.warning("Skip %s: no 'name' column", prep_path.name)
+            continue
+
+        missing_cols = [c for c in asr_cols if c not in prep.columns]
+        if missing_cols:
+            logger.warning("Skip %s: prepared CSV missing columns %s", prep_path.name, missing_cols)
+            continue
+
+        if target_path.exists():
+            target = pd.read_csv(target_path)
+            if "name" not in target.columns:
+                logger.warning("Skip %s: target has no 'name' column", target_path.name)
+                continue
+
+            # Drop any previous transcription/translation columns so the merge
+            # is clean and does not create _x/_y suffixes.
+            drop = [c for c in asr_cols if c in target.columns]
+            if drop:
+                target = target.drop(columns=drop)
+
+            merged = target.merge(prep[["name", *asr_cols]], on="name", how="left")
+        else:
+            # No generated CSV yet, so copy prepared as the starting annotation table.
+            logger.info("No generated CSV for %s; copying prepared file into %s", video_id, target_root)
+            merged = prep.copy()
+
+        merged.to_csv(target_path, index=False)
+
+        n_transcribed = (int(merged["transcription"].notna().sum()) if "transcription" in merged.columns else 0)
+        n_translated = (int(merged["translation"].notna().sum()) if "translation" in merged.columns else 0)
+
+        logger.info("  %s: %d / %d rows have transcription, %d / %d have translation -> %s",
+                video_id, n_transcribed, len(merged), n_translated, len(merged), target_path)
+        n_ok += 1
+
+    logger.info("Merged ASR annotations for %d video(s).", n_ok)
     return 0 if n_ok else 1
