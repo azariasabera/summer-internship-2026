@@ -60,7 +60,7 @@ def extract_noise(cfg: DictConfig) -> int:
 
     from tea.utils.io import load_annotation_csvs
 
-    df = load_annotation_csvs(cfg.paths.annotation_root)
+    df = load_annotation_csvs(annotation_root=cfg.paths.annotation_root, exclude=None, add_audio_path=True, json_dir=cfg.paths.chunk_meta_dir)
     video_ids = sorted(df["video"].unique())
     pool = extract_noise_pool(cfg.paths.annotation_root, video_ids)
 
