@@ -28,25 +28,26 @@ from tea.utils.config import load_config
 
 VERSION: Final[str] = "0.1.0"
 
+# type aliases
+COMMAND = str
+MODULE = str
+CLI_FUNCTION = str
+DESCRIPTION = str
+
 # ---------------------------------------------------------------------------
 # Pipeline stages (order = dependency order for everyday reproduction)
 # ---------------------------------------------------------------------------
 
-_STAGE1: Final[list[tuple[str, str, str, str]]] = [
+_STAGE1: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
     ("chunk", "tea.vad", "chunk", "VAD segmentation -> generated/chunks + annotation CSVs"),
-    (
-        "merge-annotations",
-        "tea.utils.io",
-        "merge_annotations",
-        "Copy gt_label / confidence / overlap from prepared CSVs into generated annotations",
-    ),
+    ("merge-annotations", "tea.utils.io", "merge_annotations", "Copy gt_label / confidence / overlap from prepared CSVs into generated annotations"),
+    ("apply-asr", "tea.asr", "transcribe_annotation_root", "Whisper transcribe + translate on speech chunks"),
     ("denoise", "tea.noise", "denoise", "DeepFilterNet or spectral subtraction (optional)"),
     ("extract-noise", "tea.noise", "extract_noise", "Build non-speech noise pool from annotated videos"),
-    ("apply-asr", "tea.asr", "transcribe_annotation_root", "Whisper transcribe + translate on speech chunks"),
     ("sentiment", "tea.features", "sentiment_cli", "FI/EN text-sentiment probabilities from transcripts"),
 ]
 
-_STAGE2: Final[list[tuple[str, str, str, str]]] = [
+_STAGE2: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
     ("infer-mtkd", "tea.mtkd", "infer_mtkd", "MTKD student inference -> pred_label / scores on CSVs"),
     (
         "extract-embeddings",
@@ -56,7 +57,7 @@ _STAGE2: Final[list[tuple[str, str, str, str]]] = [
     ),
 ]
 
-_STAGE3: Final[list[tuple[str, str, str, str]]] = [
+_STAGE3: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
     (
         "evaluate-classroom",
         "tea.analysis",
@@ -81,7 +82,7 @@ _STAGE3: Final[list[tuple[str, str, str, str]]] = [
     ),
 ]
 
-_STAGE4: Final[list[tuple[str, str, str, str]]] = [
+_STAGE4: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
     ("train-teacher", "tea.teachers", "train_teacher", "Monolingual teacher fine-tune (Triton)"),
     ("train-mtkd", "tea.mtkd", "train_mtkd_cli", "Multilingual MTKD student train (Triton)"),
     (
@@ -92,7 +93,7 @@ _STAGE4: Final[list[tuple[str, str, str, str]]] = [
     ),
 ]
 
-_STAGE5: Final[list[tuple[str, str, str, str]]] = [
+_STAGE5: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
     (
         "evaluate-mtkd",
         "tea.mtkd",
@@ -102,7 +103,7 @@ _STAGE5: Final[list[tuple[str, str, str, str]]] = [
     ("calibrate", "tea.mtkd", "calibrate_cli", "Temperature / bias calibration of a student checkpoint"),
 ]
 
-_ALL_STAGES: Final[list[tuple[str, list[tuple[str, str, str, str]]]]] = [
+_ALL_STAGES: Final[list[tuple[str, list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]]]] = [
     ("1. Data preparation", _STAGE1),
     ("2. Inference (frozen checkpoints)", _STAGE2),
     ("3. Analysis / probes / confidence", _STAGE3),
@@ -110,14 +111,13 @@ _ALL_STAGES: Final[list[tuple[str, list[tuple[str, str, str, str]]]]] = [
     ("5. Checkpoint evaluation helpers", _STAGE5),
 ]
 
-CLI_COMMANDS: Final[dict[str, tuple[str, str]]] = {
+CLI_COMMANDS: Final[dict[COMMAND, tuple[MODULE, CLI_FUNCTION]]] = {
     name: (mod, fn) for _, stage in _ALL_STAGES for name, mod, fn, _ in stage
 }
 
-COMMAND_HELP: Final[dict[str, str]] = {
+COMMAND_HELP: Final[dict[COMMAND, DESCRIPTION]] = {
     name: help_ for _, stage in _ALL_STAGES for name, _, _, help_ in stage
 }
-
 
 def _epilog() -> str:
     lines = [
