@@ -47,7 +47,7 @@ def denoise(cfg: DictConfig) -> int:
 
 
 def extract_noise(cfg: DictConfig) -> int:
-    """`tea extract-noise` -- extract non-speech chunk paths from annotated videos.
+    """`tea extract-noise`: extract non-speech chunk paths from annotated videos.
 
     Writes the resulting path list to `generated/noise_pool.json`.
 
@@ -61,8 +61,12 @@ def extract_noise(cfg: DictConfig) -> int:
     from tea.utils.io import load_annotation_csvs
 
     df = load_annotation_csvs(annotation_root=cfg.paths.annotation_root, exclude=None, add_audio_path=True, json_dir=cfg.paths.chunk_meta_dir)
-    video_ids = sorted(df["video"].unique())
-    pool = extract_noise_pool(cfg.paths.annotation_root, video_ids)
+
+    noise_rows = df.loc[df["gt_label"].isna()]
+    if len(noise_rows) == 0:
+        raise ValueError("Extracted noise pool is empty. Check that the annotations contain NaN-labeled (non-speech) rows.")
+
+    pool = noise_rows["audio_path"].tolist()
 
     out_path = ensure_dir(resolve(cfg.paths.get("generated_root", "generated"))) / "noise_pool.json"
     with open(out_path, "w") as f:
@@ -70,7 +74,6 @@ def extract_noise(cfg: DictConfig) -> int:
 
     logger.info("Extracted %d noise chunks -> %s", len(pool), out_path)
     return 0
-
 
 # def denoise(cfg: DictConfig) -> int:
 #     """Run the configured audio denoising pipeline.
