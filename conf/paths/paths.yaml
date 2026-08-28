@@ -3,60 +3,65 @@
 # All filesystem paths. Override per machine without touching code.
 # Prefer symlinks under data/ so recipes stay portable.
 
+data_root: data
+generated_root: generated
+log_root: logs
+tmp_root: tmp
+doc_root: doc
+checkpoint_root: final_models
+
 # Classroom media (point these at your local copies or symlinks)
-audio_root: data/classroom_audio
-video_root: data/classroom_video
+audio_root: ${paths.data}/classroom_audio
+video_root: ${paths.data}/classroom_video
+
+# Chunk
+chunk_meta_dir: ${paths.generated_root}/chunks # json form for annotation_root
+chunk_meta_fixed_dir: ${paths.generated_root}/chunks_fixed
 
 # Annotation CSVs (one per video: <video_id>.csv)
-prepared_annotation_root: data/annotations # my already prepared annotations in csv format
-annotation_root: generated/annotations
+prepared_annotation_root: ${paths.data}/annotations # my already prepared annotations in csv format
+annotation_root: ${paths.generated_root}/annotations
+
+# Noise for augmentation (full pooled collection)
+noise:
+  noise_extract_path: ${paths.data}/noise/full_noise.wav
+  noise_extract_save_dir: ${paths.generated_root}/noise
 
 # Prediction JSONs produced by MTKD inference
-prediction_root: generated/predictions
+prediction_root: ${paths.generated_root}/predictions
 
 # Pooled embeddings (per-video folders with pooled.npy + metadata)
-embedding_root: generated/embeddings
+embedding_root: ${paths.generated_root}/embeddings
 
 # Text-sentiment JSONs
-sentiment_fi: generated/sentiment/sentiment_fi.json
-sentiment_en: generated/sentiment/sentiment_en.json
+sentiment_fi: ${paths.generated_root}/sentiment/sentiment_fi.json
+sentiment_en: ${paths.generated_root}/sentiment/sentiment_en.json
 
-# Model checkpoints
-checkpoint_root: final_models
+# MTKD related
 teacher_ckpt_dir: ${paths.checkpoint_root}/teachers
 student_ckpt_dir: ${paths.checkpoint_root}/mtkd
 mtkd_student_ckpt: ${paths.student_ckpt_dir}/MTKD_Multilingual_FI_S6.pth
 classroom_finetune_dir: ${paths.checkpoint_root}/classroom_finetuned
 noise_retrain_dir: ${paths.checkpoint_root}/noise_retrained
 
-# Outputs
-chunk_meta_dir: generated/chunks
-chunk_meta_fixed_dir: generated/chunks_fixed
-generated_root: generated
-log_dir: logs
-tmp_dir: tmp
-
-# Noise for augmentation (full pooled collection)
-noise_path: data/noise/full_noise.wav
-
 # FESC-contaminated augmentation audio cache
-fesc_contaminated_dir: generated/fesc_contaminated
+fesc_contaminated_dir: ${paths.generated_root}/fesc_contaminated
 
 # --- Benchmark dataset splits (FESC / IEMOCAP / CaFE) ---
 # splits_root: the json train/test/dev split files (data.py's SPLITS_DIR)
 # datasets_root: the actual resampled audio referenced by those splits (DATASETS_DIR)
 # cafe_root: CaFE has its own separate audio root (config.CAFE_DIR)
-splits_root: data/datasplits
-datasets_root: data/datasets
-cafe_root: data/datasets/cafe
+splits_root: ${paths.data}/datasplits
+datasets_root: ${paths.data}/datasets
+cafe_root: ${paths.data}/datasets/cafe
 
 analysis:
-  analysis_output_dir: generated/analysis
-  plot_save_dir: generated/analysis/emotion_arcs
+  analysis_output_dir: ${paths.generated_root}/analysis
+  plot_save_dir: ${paths.generated_root}/analysis/emotion_arcs
 
 confidence:
-  confidence_output_dir: generated/confidence
+  confidence_output_dir: ${paths.generated_root}/confidence
 
 probes:
-  child_speech_out_dir: generated/probes/child_speech
-  feature_fusion_out_dir: generated/probes/feature_fusion
+  child_speech_out_dir: ${paths.generated_root}/probes/child_speech
+  feature_fusion_out_dir: ${paths.generated_root}/probes/feature_fusion
