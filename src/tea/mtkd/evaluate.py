@@ -71,7 +71,7 @@ def evaluate_mtkd_cli(cfg: DictConfig) -> int:
     session = cfg.mtkd.session
 
     device = torch.device(cfg.device if torch.cuda.is_available() or cfg.device == "cpu" else "cpu")
-    ckpt_path = resolve(cfg.paths.mtkd_student_ckpt) / f"MTKD_{linguality}_{language}_S{session}.pth"
+    ckpt_path = resolve(cfg.paths.student_ckpt_dir) / f"MTKD_{linguality}_{language}_S{session}.pth"
 
     if not ckpt_path.exists():
         logger.error("Checkpoint not found: %s", ckpt_path)
