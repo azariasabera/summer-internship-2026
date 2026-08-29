@@ -1,14 +1,15 @@
 # conf/noise/noise.yaml
 
-# Denoising method: "deepfilter" or "spectral"
-method: deepfilter
+# Denoising method
+method: deepfilter # "deepfilter" | "spectral"
 
-# DeepFilterNet
-atten_lim_db: 15          # 15 = milder, 0 = stronger attenuation
-long_audio_threshold_sec: 600
-chunk_sec: 60
-overlap_sec: 0.5
-force_chunked: false
+deepfilter:
+  atten_lim_db: 15          # 15 = milder, 0 = stronger attenuation
+  long_audio_threshold_sec: 600
+  chunk_sec: 60
+  overlap_sec: 0.5
+  force_chunked: false
+  save_dir: ${paths.noise.deepfilter_save_dir}
 
 # Spectral subtraction
 spectral:
@@ -16,6 +17,7 @@ spectral:
   hop: 256
   alpha: 1.0
   beta: 0.05
+  save_dir: ${paths.noise.spectral_save_dir}
 
 # Training-time additive noise augmentation (report Table 21 "retrain" rows)
 augment:
@@ -23,7 +25,7 @@ augment:
   snr_min: 15.0
   snr_max: 30.0
   seed: 42
-  noise_path: ${paths.noise_path}
+  noise_path: ${paths.noise.noise_extract_save_dir}
 
 # Room impulse response (RIR) reverb augmentation.
 # `rir_root` must contain an OpenSLR-28-style `simulated_rirs/` subtree.
