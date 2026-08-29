@@ -5,6 +5,7 @@ from __future__ import annotations
 from omegaconf import DictConfig
 
 from tea.noise.denoiser import Denoiser
+from tea.noise.spectral_subtraction import SpectralSubtractor, build_noise_reference
 from tea.noise.extraction import extract_noise_pool
 from tea.utils.logging import get_logger
 from tea.utils.paths import ensure_dir, resolve
@@ -83,10 +84,69 @@ def denoise(cfg: DictConfig) -> int:
             denoiser.close()
 
     elif method == "spectral":
-        logger.info(
-            "Spectral subtraction needs a per-file noise reference (non-speech chunk); "
-            "wire this up once tea.vad chunk metadata + tea.analysis.noise are both in place."
+
+        from tea.utils.io import load_annotation_csvs
+        import numpy as np
+
+        videos_df = load_annotation_csvs(
+            annotation_root=cfg.paths.annotation_root,
+            exclude=None,
+            add_audio_path=True,
+            json_dir=cfg.paths.chunk_meta_dir,
         )
+        subtractor = SpectralSubtractor(
+            n_fft=int(cfg.noise.spectral.get("n_fft", 1024)),
+            hop=int(cfg.noise.spectral.get("hop", 256)),
+            alpha=float(cfg.noise.spectral.get("alpha", 1.0)),
+            beta=float(cfg.noise.spectral.get("beta", 0.05)),
+        )
+
+        n_noise_chunks = int(cfg.noise.spectral.get("n_noise_chunks", 5))
+
+        for video, video_df in videos_df.groupby("video", sort=True):
+
+            logger.info("Processing %s", video)
+
+            video_out_dir = ensure_dir(out_dir / video)
+
+            reference = build_noise_reference(video_df, n_chunks=n_noise_chunks)
+
+            if reference is None:
+                logger.warning("%s: no gt_label-NaN noise chunks", video)
+                continue
+
+            noise_signal = reference["noise_signal"]
+            noise_sr = reference["sr"]
+            selected = reference["selected"]
+
+            logger.info("%s: %d noise candidates, using %d", video, reference["n_candidates"], len(selected))
+
+            for item in selected:
+                logger.info("  %s: power=%.6e", item["name"], item["power"])
+
+            logger.info("%s: selected noise median power=%.6e", video, np.median([item["power"] for item in selected]))
+
+            audio_paths = video_df["audio_path"].dropna().unique()
+            audio_path = resolve(audio_paths[0])
+
+            waveform, sr = librosa.load(audio_path, sr=None, mono=True)
+            if sr != noise_sr:
+                raise ValueError(f"{video}: source sample rate={sample_rate}, noise sample rate={noise_sr}")
+
+            # Applying the spectral subtraction
+            for _, row in video_df.iterrows():
+                start = int(row["start"])
+                end = int(row["end"])
+
+                chunk = waveform[start:end]
+
+                y = subtractor.subtract(speech=chunk, noise=noise_signal)
+                y = np.clip(y, -1.0, 1.0)
+
+                chunk_out_file = video_out_dir / f"{row['name']}.wav"
+                sf.write(chunk_out_file, y, sr)
+
+            logger.info("%s: denoised %d chunks", video, len(video_df))
     else:
         logger.error("Unknown noise.method=%s", method)
         return 2
