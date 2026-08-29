@@ -11,20 +11,20 @@ doc_root: doc
 checkpoint_root: final_models
 
 # Classroom media (point these at your local copies or symlinks)
-audio_root: ${paths.data}/classroom_audio
-video_root: ${paths.data}/classroom_video
+audio_root: ${paths.data_root}/classroom_audio
+video_root: ${paths.data_root}/classroom_video
 
 # Chunk
 chunk_meta_dir: ${paths.generated_root}/chunks # json form for annotation_root
 chunk_meta_fixed_dir: ${paths.generated_root}/chunks_fixed
 
 # Annotation CSVs (one per video: <video_id>.csv)
-prepared_annotation_root: ${paths.data}/annotations # my already prepared annotations in csv format
+prepared_annotation_root: ${paths.data_root}/annotations # my already prepared annotations in csv format
 annotation_root: ${paths.generated_root}/annotations
 
 # Noise for augmentation (full pooled collection)
 noise:
-  noise_extract_path: ${paths.data}/noise/full_noise.wav
+  noise_extract_path: ${paths.data_root}/noise/full_noise.wav
   noise_extract_save_dir: ${paths.generated_root}/noise
   noise_extract_save_path: ${paths.noise.noise_extract_save_dir}/full_noise.wav
 
@@ -56,9 +56,9 @@ fesc_contaminated_dir: ${paths.generated_root}/fesc_contaminated
 # splits_root: the json train/test/dev split files (data.py's SPLITS_DIR)
 # datasets_root: the actual resampled audio referenced by those splits (DATASETS_DIR)
 # cafe_root: CaFE has its own separate audio root (config.CAFE_DIR)
-splits_root: ${paths.data}/datasplits
-datasets_root: ${paths.data}/datasets
-cafe_root: ${paths.data}/datasets/cafe
+splits_root: ${paths.data_root}/datasplits
+datasets_root: ${paths.data_root}/datasets
+cafe_root: ${paths.data_root}/datasets/cafe
 
 analysis:
   analysis_output_dir: ${paths.generated_root}/analysis
