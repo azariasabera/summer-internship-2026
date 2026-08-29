@@ -56,9 +56,10 @@ fesc_contaminated_dir: ${paths.generated_root}/fesc_contaminated
 # splits_root: the json train/test/dev split files (data.py's SPLITS_DIR)
 # datasets_root: the actual resampled audio referenced by those splits (DATASETS_DIR)
 # cafe_root: CaFE has its own separate audio root (config.CAFE_DIR)
-splits_root: ${paths.data_root}/datasplits
-datasets_root: ${paths.data_root}/datasets
-cafe_root: ${paths.data_root}/datasets/cafe
+# TODO: In future I'll replace the paths below with ${paths.data_root}/... once symlinked into the project data directory.
+splits_root: /m/triton/scratch/elec/t405-puhe/p/bijoym1/SER/DataSplits #${paths.data_root}/datasplits
+datasets_root: /m/triton/scratch/elec/t405-puhe/p/bijoym1/SER/Datasets #${paths.data_root}/datasets
+cafe_root: /m/triton/scratch/elec/t405-puhe/c #${paths.data_root}/datasets/cafe
 
 analysis:
   analysis_output_dir: ${paths.generated_root}/analysis
