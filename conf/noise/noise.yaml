@@ -17,6 +17,7 @@ spectral:
   hop: 256
   alpha: 1.0
   beta: 0.05
+  n_noise_chunks: 5
   save_dir: ${paths.noise.spectral_save_dir}
 
 # Training-time additive noise augmentation (report Table 21 "retrain" rows)
