@@ -19,6 +19,7 @@ from tea.mtkd import data as mtkd_data
 from tea.mtkd.model import load_model
 from tea.mtkd.utils import collate_fn, confusion_matrix, preprocess_function
 from tea.utils.logging import get_logger
+from tea.utils.paths import resolve
 
 logger = get_logger(__name__)
 
@@ -53,47 +54,60 @@ def run_eval(model, loader, device: torch.device) -> dict:
         "confidence": confidence,
     }
 
-
-def evaluate_student(
-    cfg: DictConfig, linguality: str, language: str, session: int, checkpoint: str | Path | None = None
-) -> dict:
+def evaluate_mtkd_cli(cfg: DictConfig) -> int:
     """Evaluate a trained student on its test split (report Tables 4/5).
 
     Parameters
     ----------
     cfg:
         Resolved Hydra config.
-    linguality:
-        `"Monolingual"` (Finnish-only test, Table 4) or `"Multilingual"`
-        (combined FI+EN+FR test, Table 5).
-    language, session:
-        Which checkpoint's dataset/session to evaluate against.
-    checkpoint:
-        Override checkpoint path; defaults to the standard naming convention.
     """
+    if cfg.mtkd.linguality is None or cfg.mtkd.language is None or cfg.mtkd.session is None:
+        logger.error("Set mtkd.linguality, mtkd.language and mtkd.session")
+        return 2
+
+    linguality = cfg.mtkd.linguality
+    language = cfg.mtkd.language
+    session = cfg.mtkd.session
+
     device = torch.device(cfg.device if torch.cuda.is_available() or cfg.device == "cpu" else "cpu")
-    ckpt_path = checkpoint or (
-        Path(cfg.paths.checkpoint_root) / "mtkd" / f"MTKD_{linguality}_{language}_S{session}.pth"
-    )
+    ckpt_path = resolve(cfg.paths.mtkd_student_ckpt) / f"MTKD_{linguality}_{language}_S{session}.pth"
+
+    if not ckpt_path.exists():
+        logger.error("Checkpoint not found: %s", ckpt_path)
+        return 1
 
     ds = mtkd_data.build_dataset(cfg, linguality, language, session)
+
     feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(cfg.mtkd.model_ckpt)
     encoded = ds["test"].map(
         lambda ex: preprocess_function(ex, feature_extractor, cfg.mtkd.hyperparams.max_duration_sec),
         remove_columns="audio",
         batched=True,
     )
+
     test_loader = DataLoader(encoded, batch_size=cfg.mtkd.hyperparams.batch_size, collate_fn=collate_fn)
 
     model, epoch = load_model(cfg, ckpt_path, device)
     model.eval()
+
     logger.info("Loaded checkpoint (epoch %s) from %s", epoch, ckpt_path)
 
     results = run_eval(model, test_loader, device)
-    logger.info("UAR=%.4f WAR=%.4f Acc=%.4f", results["uar"], results["war"], results["accuracy"])
-    logger.info("Confusion matrix:\n%s", confusion_matrix(results["actual"], results["predicted"]))
-    return results
 
+    logger.info(
+        "MTKD %s %s S%s | UAR=%.4f WAR=%.4f Acc=%.4f",
+        linguality,
+        language,
+        session,
+        results["uar"],
+        results["war"],
+        results["accuracy"],
+    )
+
+    logger.info("Confusion matrix:\n%s", confusion_matrix(results["actual"], results["predicted"]))
+
+    return 0
 
 def evaluate_classroom_cli(cfg: DictConfig) -> int:
     """`tea evaluate-classroom` entry point -- delegates to `tea.analysis.classroom` once that module lands.
