@@ -72,7 +72,7 @@ def denoise(cfg: DictConfig) -> int:
                         input_path=chunk_input,
                         output_path=chunk_output,
                         save=True,
-                        atten_lim_db=cfg.noise.atten_lim_db,
+                        atten_lim_db=cfg.noise.deepfilter.atten_lim_db,
                     )
 
                     chunk_input.unlink()
