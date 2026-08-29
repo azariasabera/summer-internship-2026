@@ -96,8 +96,8 @@ _STAGE4: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
 _STAGE5: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
     (
         "evaluate-mtkd",
-        "tea.mtkd",
-        "evaluate_classroom",
+        "tea.mtkd.evaluate",
+        "evaluate_mtkd_cli",
         "Evaluate a student checkpoint on held-out benchmark splits",
     ),
     ("calibrate", "tea.mtkd", "calibrate_cli", "Temperature / bias calibration of a student checkpoint"),
