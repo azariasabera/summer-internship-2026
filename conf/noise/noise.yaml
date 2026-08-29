@@ -25,7 +25,7 @@ augment:
   snr_min: 15.0
   snr_max: 30.0
   seed: 42
-  noise_path: ${paths.noise.noise_extract_save_dir}
+  noise_path: ${paths.noise.noise_extract_save_path}
 
 # Room impulse response (RIR) reverb augmentation.
 # `rir_root` must contain an OpenSLR-28-style `simulated_rirs/` subtree.

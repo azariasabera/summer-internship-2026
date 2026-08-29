@@ -26,8 +26,11 @@ annotation_root: ${paths.generated_root}/annotations
 noise:
   noise_extract_path: ${paths.data}/noise/full_noise.wav
   noise_extract_save_dir: ${paths.generated_root}/noise
-  deepfilter_save_dir:  ${paths.noise_extract_save_dir}/deepfilter
-  spectral_save_dir: ${paths.noise_extract_save_dir}/spectral
+  noise_extract_save_path: ${paths.noise.noise_extract_save_dir}/full_noise.wav
+
+  # Denoise
+  deepfilter_save_dir: ${paths.noise.noise_extract_save_dir}/deepfilter
+  spectral_save_dir: ${paths.noise.noise_extract_save_dir}/spectral
 
 # Prediction JSONs produced by MTKD inference
 prediction_root: ${paths.generated_root}/predictions
