@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 
 
 def denoise(cfg: DictConfig) -> int:
-    """`tea denoise` -- run the configured denoising method over `cfg.paths.audio_root`.
+    """`tea denoise`: run the configured denoising method.
 
     Parameters
     ----------
@@ -21,19 +21,67 @@ def denoise(cfg: DictConfig) -> int:
         Resolved Hydra config. `cfg.noise.method` selects `"deepfilter"`
         (default) or `"spectral"`.
     """
-    method = cfg.noise.get("method", "deepfilter")
-    audio_root = resolve(cfg.paths.audio_root)
-    out_dir = ensure_dir(resolve(cfg.paths.get("generated_root", "generated")) / "denoised" / method)
+    import json
+    import librosa
+    import soundfile as sf
 
-    wav_files = sorted(audio_root.glob("*.wav")) if audio_root.is_dir() else [audio_root]
-    logger.info("Denoising %d file(s) with method=%s -> %s", len(wav_files), method, out_dir)
+    method = cfg.noise.get("method", "deepfilter")
+
+    if method not in ["deepfilter", "spectral"]:
+        raise ValueError(f"Unknown noise.method='{method}'")
+
+    chunk_meta_dir = resolve(cfg.paths.chunk_meta_dir) # contains per-video json meta data
+
+    out_dir = ensure_dir(resolve(cfg.noise.get(method).get("save_dir")))
+
+    json_files = sorted(chunk_meta_dir.glob("*.json"))
+    logger.info("Denoising %d file(s) with method=%s -> %s", len(json_files), method, out_dir)
 
     if method == "deepfilter":
         denoiser = Denoiser(cfg)
-        for wav_path in wav_files:
-            denoiser.enhance(
-                wav_path, output_path=out_dir / wav_path.name, save=True, atten_lim_db=cfg.noise.atten_lim_db
-            )
+
+        try:
+            for json_file in json_files:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+
+                audio_path = resolve(meta["audio_path"])
+                sample_rate = int(meta.get("sr", 16_000))
+
+                video_out_dir = ensure_dir(out_dir / json_file.stem)
+
+                waveform, _ = librosa.load(audio_path, sr=sample_rate, mono=True)
+
+                for idx, segment in enumerate(meta.get("segments", [])):
+                    start = int(segment["start"])
+                    end = int(segment["end"])
+                    segment_type = segment.get("type", "speech")
+
+                    prefix = "s" if segment_type == "speech" else "n"
+                    chunk_name = f"chunk_{prefix}_{idx}"
+
+                    chunk = waveform[start:end]
+
+                    # Temporary input for DeepFilterNet.
+                    chunk_input = video_out_dir / f"{chunk_name}_input.wav"
+                    chunk_output = video_out_dir / f"{chunk_name}.wav"
+
+                    sf.write(chunk_input, chunk, sample_rate)
+
+                    denoiser.enhance(
+                        input_path=chunk_input,
+                        output_path=chunk_output,
+                        save=True,
+                        atten_lim_db=cfg.noise.atten_lim_db,
+                    )
+
+                    chunk_input.unlink()
+
+                logger.info("  %s: denoised %d chunks", json_file.stem, len(meta.get("segments", [])))
+
+        finally:
+            denoiser.close()
+
     elif method == "spectral":
         logger.info(
             "Spectral subtraction needs a per-file noise reference (non-speech chunk); "
