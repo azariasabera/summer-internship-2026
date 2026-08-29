@@ -48,7 +48,7 @@ _STAGE1: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
 ]
 
 _STAGE2: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
-    ("infer-mtkd", "tea.mtkd", "infer_mtkd", "MTKD student inference -> pred_label / scores on CSVs"),
+    ("infer-mtkd", "tea.mtkd.infer", "infer_mtkd_cli", "MTKD student inference -> pred_label / scores on CSVs"),
     (
         "extract-embeddings",
         "tea.mtkd.embeddings",
