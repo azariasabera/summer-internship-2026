@@ -35,7 +35,7 @@ class Denoiser:
     """
 
     def __init__(self, cfg: DictConfig) -> None:
-        self.cfg = cfg.noise
+        self.cfg = cfg.noise.deepfilter
         self._model = None
         self._df_state = None
 
