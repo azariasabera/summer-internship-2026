@@ -16,6 +16,8 @@ from tea.utils.logging import get_logger
 from tea.utils.paths import ensure_dir, resolve
 from tea.vad.segmenter import Segmenter
 
+from tea.vad.audio import save_audio_chunks
+
 logger = get_logger(__name__)
 
 
@@ -34,17 +36,24 @@ def chunk(cfg: DictConfig) -> int:
     """
     audio_root = resolve(cfg.paths.audio_root)
     out_dir = ensure_dir(resolve(cfg.paths.chunk_meta_dir))
+    save_json_data = bool(cfg.vad.get("save_json_data", True))
+    save_audios = bool(cfg.vad.get("save_audios", False))
 
     logger.info("Running VAD chunking on %s -> %s", audio_root, out_dir)
 
     segmenter = Segmenter(cfg)
     results = segmenter.chunk_vad(
         audio_root,
-        save=True,
+        save=save_json_data,
         save_dir=out_dir,
     )
 
     logger.info("Chunked %d file(s).", len(results))
+
+    if save_audios:
+        audio_save_dir = ensure_dir(resolve(cfg.vad.get("save_dir")))
+        save_audio_chunks(segments=results, save_pth=audio_save_dir)
+        logger.info("Saved chunk WAVs to %s.", str(audio_save_dir))
 
     # Mirror each JSON as an annotation CSV
     n_csv = 0
