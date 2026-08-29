@@ -226,10 +226,14 @@ def infer_mtkd_cli(cfg: DictConfig) -> int:
         else inferencer.run(input_path, batch_size=batch_size)
     )
 
-    output_path = infer_cfg.get("output")
-    if output_path:
-        inferencer.save_grouped(results, output_path)
+    if infer_cfg.get("save_output", True):
+        output_path = infer_cfg.get("output")
+        if output_path:
+            inferencer.save_grouped(results, output_path)
+        else:
+            logger.warning("Save output was true, but couldn't find ouput save path.")
 
-    annotations = collect_annotations(gather_files(input_path), infer_cfg.get("annotations_dir"))
-    print_confusion_matrix(results, annotations)
+    if infer_cfg.get("eval", True):
+        annotations = collect_annotations(gather_files(input_path), infer_cfg.get("annotations_dir"))
+        print_confusion_matrix(results, annotations)
     return 0

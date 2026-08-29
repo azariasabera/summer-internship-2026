@@ -60,10 +60,12 @@ noise:
 
 # --- Runtime overrides for `tea infer-mtkd` ---
 infer:
-  input: null
-  checkpoint: null
-  output: null
-  annotations_dir: null
+  input: ${paths.chunk_audio_dir} # null
+  checkpoint: ${paths.mtkd_student_ckpt} # null
+  save_output: true
+  output: ${paths.infer.infer_ouput_dir} # null
+  eval: true
+  annotations_dir: ${paths.annotation_root} # null
   per_teacher: false
   batch_size: null
 

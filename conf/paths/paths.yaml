@@ -72,3 +72,6 @@ confidence:
 probes:
   child_speech_out_dir: ${paths.generated_root}/probes/child_speech
   feature_fusion_out_dir: ${paths.generated_root}/probes/feature_fusion
+
+infer:
+  infer_ouput_dir: ${paths.generated_root}/mtkd_inference
