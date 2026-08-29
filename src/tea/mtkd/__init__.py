@@ -23,7 +23,7 @@ Public API re-exports the pieces most callers need directly. Submodules:
 """
 
 from tea.mtkd.calibrate import Calibrator, calibrate_cli
-from tea.mtkd.evaluate import evaluate_classroom_cli, evaluate_student
+from tea.mtkd.evaluate import evaluate_classroom_cli, evaluate_mtkd_cli
 from tea.mtkd.embeddings import EmbeddingExtractor, extract_embeddings_cli
 from tea.mtkd.infer import Inferencer, infer_mtkd_cli
 from tea.mtkd.losses import MTKDLoss
@@ -35,7 +35,7 @@ __all__ = [
     "Calibrator",
     "EmbeddingExtractor",
     "MTKDLoss",
-    "evaluate_student",
+    "evaluate_mtkd_cli",
     "train_mtkd_cli",
     "infer_mtkd_cli",
     "calibrate_cli",
