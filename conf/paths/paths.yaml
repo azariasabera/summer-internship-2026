@@ -17,6 +17,7 @@ video_root: ${paths.data_root}/classroom_video
 # Chunk
 chunk_meta_dir: ${paths.generated_root}/chunks # json form for annotation_root
 chunk_meta_fixed_dir: ${paths.generated_root}/chunks_fixed
+chunk_audio_dir: ${paths.generated_root}/chunked_audios
 
 # Annotation CSVs (one per video: <video_id>.csv)
 prepared_annotation_root: ${paths.data_root}/annotations # my already prepared annotations in csv format

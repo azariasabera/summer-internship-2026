@@ -1,5 +1,10 @@
 # conf/vad/vad.yaml
 
+save_audios: false
+save_dir: ${paths.chunk_audio_dir}
+
+save_json_data: true
+
 # VAD + segment refinement parameters.
 # These values produced the segment boundaries used in the progress report.
 # Changing them will change chunk durations and downstream metrics.
