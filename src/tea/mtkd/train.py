@@ -22,7 +22,7 @@ from tea.mtkd.frozen_teachers import load_frozen_teachers, logit_permutations
 from tea.mtkd.losses import MTKDLoss
 from tea.mtkd.model import build_student
 from tea.mtkd.utils import collate_fn, confusion_matrix, plot_training, preprocess_function
-from tea.noise import NoiseAugmentor
+from tea.noise.augmentation import NoiseAugmentor
 from tea.utils.logging import get_logger
 from tea.utils.paths import ensure_dir, resolve
 from tea.utils.seed import set_seed
