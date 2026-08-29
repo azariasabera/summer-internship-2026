@@ -39,6 +39,17 @@ class Denoiser:
         self._model = None
         self._df_state = None
 
+    def close(self) -> None:
+        """Release the DeepFilterNet model and associated resources."""
+        if self._model is not None:
+            self._model.cpu()
+
+        self._model = None
+        self._df_state = None
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     def _load_model(self, device: str | None = None):
         from df import init_df
 
