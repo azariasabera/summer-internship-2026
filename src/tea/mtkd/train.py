@@ -49,7 +49,7 @@ class Trainer:
     def checkpoint_path(self, linguality: str, language: str, session: int, suffix: str = "") -> Path:
         """Resolve the checkpoint path for a training run, optionally with a noise-condition suffix."""
         name = f"MTKD_{linguality}_{language}_S{session}{suffix}.pth"
-        return resolve(self.cfg.paths.checkpoint_root) / "mtkd" / name
+        return resolve(self.cfg.paths.student_ckpt_dir) / name
 
     def _build_loaders(self, ds, feature_extractor, batch_size: int, augmentor: NoiseAugmentor | None):
         hp = self.cfg.mtkd.hyperparams
@@ -91,6 +91,7 @@ class Trainer:
         session: int,
         epochs: int | None = None,
         lr: float | None = None,
+        batch_size: int | None = None,
         mode: str = TrainMode,
         augmentor: NoiseAugmentor | None = None,
         checkpoint_suffix: str = "",
@@ -125,6 +126,7 @@ class Trainer:
         set_seed(self.cfg.seed)
 
         lr = lr if lr is not None else (hp.finetune_lr if mode == "finetune" else hp.learning_rate)
+        batch_size = hp.batch_size if batch_size is None else batch_size
         ckpt_path = self.checkpoint_path(linguality, language, session, checkpoint_suffix)
 
         if mode == "finetune" and not ckpt_path.exists():
@@ -134,7 +136,7 @@ class Trainer:
 
         ds = mtkd_data.build_dataset(self.cfg, linguality, language, session)
         feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(self.cfg.mtkd.model_ckpt)
-        train_loader, dev_loader, test_loader = self._build_loaders(ds, feature_extractor, hp.batch_size, augmentor)
+        train_loader, dev_loader, test_loader = self._build_loaders(ds, feature_extractor, batch_size, augmentor)
 
         teachers = load_frozen_teachers(self.cfg, self.device)
         perms = logit_permutations(self.cfg, self.device)
@@ -162,6 +164,9 @@ class Trainer:
                     history = json.load(f)
 
         epochs = hp.n_epochs if epochs is None else epochs
+
+        logger.info("\nTraining with: lr=%g, batch_size=%d, max_epochs=%d\n", lr, batch_size, epochs)
+
         for epoch in range(start_epoch, start_epoch + epochs):
             train_metrics = engine.train_epoch(student, teachers, perms, train_loader, optimizer, loss_fn, self.device, desc=f"Epoch {epoch} train")
             logger.info("[%d] train loss=%.4f UAR=%.4f WAR=%.4f Acc=%.4f", epoch, train_metrics["loss"], train_metrics["uar"], train_metrics["war"], train_metrics["accuracy"])
@@ -199,7 +204,7 @@ class Trainer:
                     logger.info("No dev UAR improvement for %d epochs, stopping early at epoch %d.", hp.patience, epoch)
                     break
 
-        plot_training(history, str(plot_dir), hp.n_epochs, hp.learning_rate, hp.batch_size)
+        plot_training(history, str(plot_dir), epochs, lr, batch_size)
 
         checkpoint = torch.load(ckpt_path, map_location=self.device)
         student.load_state_dict(checkpoint["model_state_dict"])
@@ -240,6 +245,7 @@ def train_mtkd_cli(cfg: DictConfig) -> int:
         cfg.mtkd.session,
         epochs=cfg.mtkd.get("epochs"),
         lr=cfg.mtkd.get("lr"),
+        batch_size=cfg.mtkd.get("batch_size"),
         mode=cfg.mtkd.get("mode", "train"),
         augmentor=augmentor,
         checkpoint_suffix=suffix,
