@@ -235,8 +235,20 @@ class LOTOFineTuner:
         batch_size = batch_size if batch_size is not None else cc.get("batch_size", 8)
         lr = lr if lr is not None else cc.get("lr", 2e-5)
 
-        df = build_full_df(self.cfg.paths.audio_root, self.cfg.paths.annotation_root, set(cc.excluded_videos))
+        audio_root = resolve(self.cfg.paths.chunk_audio_dir)
+        annotation_root = resolve(self.cfg.paths.annotation_root)
 
+        if not audio_root.exists():
+            raise FileNotFoundError(f"Chunk audio directory not found: {audio_root}")
+
+        if not annotation_root.exists():
+            raise FileNotFoundError(f"Annotation directory not found: {annotation_root}")
+
+        logger.info("Chunk audio directory: %s", audio_root)
+        logger.info("Annotation directory: %s", annotation_root)
+
+        df = build_full_df(audio_root, annotation_root, set(cc.excluded_videos))
+        
         results = []
         for fold_name, held_out, train_df, test_df in teacher_grouped_folds(df, n_splits=cc.cv):
             results.append(
