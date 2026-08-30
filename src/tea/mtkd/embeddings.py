@@ -270,7 +270,7 @@ def extract_embeddings_cli(cfg: DictConfig) -> int:
     source = emb_cfg.get("source", "videos")
     checkpoint = emb_cfg.get("checkpoint") or cfg.mtkd.default_student_checkpoint
     output_dir = ensure_dir(resolve(emb_cfg.get("output_dir", cfg.paths.embedding_root)))
-    layer_ids = [int(x) for x in str(emb_cfg.get("layers", "")).split(",") if x.strip()]
+    layer_ids = [int(x) for x in emb_cfg.get("layers", [])]
     batch_size = emb_cfg.get("batch_size", 16)
 
     extractor = EmbeddingExtractor(cfg, checkpoint)
@@ -288,11 +288,16 @@ def extract_embeddings_cli(cfg: DictConfig) -> int:
             )
         return 0
 
-    sessions_raw = str(emb_cfg.get("sessions", "all"))
-    sessions = list(range(1, SOURCE_MAX_SESSION[source] + 1)) if sessions_raw.lower() == "all" else [
-        int(x) for x in sessions_raw.split(",") if x.strip()
-    ]
-    splits = [s.strip() for s in str(emb_cfg.get("splits", "train,test,dev")).split(",") if s.strip()]
+    sessions_raw = emb_cfg.get("sessions", "all")
+    max_session = SOURCE_MAX_SESSION[source]
+
+    if isinstance(sessions_raw, str) and sessions_raw.lower() == "all":
+        sessions = list(range(1, max_session + 1))
+    else:
+        sessions = [int(x) for x in sessions_raw]
+        sessions = [x for x in sessions if 1 <= x <= max_session]
+
+    splits = list(emb_cfg.get("splits", ["train", "test", "dev"]))
     language = SOURCE_LANGUAGE[source]
 
     from tea.teachers import LOADERS # lazy import to avoid circular dependency
