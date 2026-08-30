@@ -12,7 +12,7 @@ import pandas as pd
 import torch
 from datasets import Audio, Dataset
 from omegaconf import DictConfig
-from sklearn.metrics import confusion_matrix as sk_confusion_matrix
+from sklearn.metrics import accuracy_score, recall_score, confusion_matrix as sk_confusion_matrix
 from torch.utils.data import DataLoader
 
 from tea.mtkd.model import load_model
@@ -73,31 +73,159 @@ def group_results_by_video(results: dict) -> dict:
         grouped[p.parent.name][p.stem] = data
     return grouped
 
-def print_confusion_matrix(results: dict, annotations: dict) -> None:
-    """Print a confusion matrix over whichever inferred files have a matching ground-truth annotation."""
-    results = group_results_by_video(results)
+def _compute_metrics(y_true: list[str], y_pred: list[str]) -> tuple[float, float]:
+    """Return UAR and WAR.
+
+    UAR = unweighted average recall across classes (macro recall).
+    WAR = weighted average recall across classes.
+    """
+    uar = recall_score(
+        y_true,
+        y_pred,
+        labels=CLASS_ORDER,
+        average="macro",
+        zero_division=0,
+    )
+    war = recall_score(
+        y_true,
+        y_pred,
+        labels=CLASS_ORDER,
+        average="weighted",
+        zero_division=0,
+    )
+    return uar, war
+
+
+def _collect_matching_labels(results: dict, annotations: dict) -> tuple[list[str], list[str]]:
+    """Collect matching ground-truth and predicted labels."""
+    grouped_results = group_results_by_video(results)
+
     y_true, y_pred = [], []
-    for video_id, chunks in results.items():
+    for video_id, chunks in grouped_results.items():
         if video_id not in annotations:
             continue
+
         for chunk_stem, pred in chunks.items():
             if chunk_stem not in annotations[video_id]:
                 continue
+
             gt = annotations[video_id][chunk_stem]
             if gt not in CLASS_ORDER:
                 continue
+
             y_true.append(gt)
             y_pred.append(pred["prediction"])
+
+    return y_true, y_pred
+
+
+def print_confusion_matrix(results: dict, annotations: dict) -> None:
+    """Print confusion matrix, UAR and WAR over matching annotations."""
+    y_true, y_pred = _collect_matching_labels(results, annotations)
 
     if not y_true:
         print("\nNo matching ground-truth annotations found.")
         return
 
+    uar, war = _compute_metrics(y_true, y_pred)
+
     cm = sk_confusion_matrix(y_true, y_pred, labels=CLASS_ORDER)
+
     print("\nConfusion Matrix\n")
     print("{:>12}".format("") + "".join(f"{l:>12}" for l in CLASS_ORDER))
     for label, row in zip(CLASS_ORDER, cm):
         print(f"{label:>12}" + "".join(f"{v:>12}" for v in row))
+
+    print(f"\nUAR: {uar:.4f} ({uar * 100:.2f}%)")
+    print(f"WAR: {war:.4f} ({war * 100:.2f}%)")
+    print(f"Samples: {len(y_true)}")
+
+
+def print_per_teacher_metrics(results: dict, annotations: dict) -> None:
+    """Print pooled confusion matrix/metrics and mean per-teacher metrics.
+
+    Pooled metrics:
+        All teacher predictions are pooled together before computing metrics.
+
+    Mean metrics:
+        UAR/WAR are computed independently for each teacher and then averaged,
+        giving every teacher equal weight regardless of number of chunks.
+    """
+    grouped_results = group_results_by_video(results)
+
+    teacher_metrics = []
+    pooled_true, pooled_pred = [], []
+
+    for video_id, chunks in sorted(grouped_results.items()):
+        if video_id not in annotations:
+            continue
+
+        teacher_true, teacher_pred = [], []
+
+        for chunk_stem, pred in chunks.items():
+            if chunk_stem not in annotations[video_id]:
+                continue
+
+            gt = annotations[video_id][chunk_stem]
+            if gt not in CLASS_ORDER:
+                continue
+
+            teacher_true.append(gt)
+            teacher_pred.append(pred["prediction"])
+
+        if not teacher_true:
+            continue
+
+        # Add this teacher's predictions to the pooled evaluation.
+        pooled_true.extend(teacher_true)
+        pooled_pred.extend(teacher_pred)
+
+        # Calculate metrics independently for this teacher.
+        uar, war = _compute_metrics(teacher_true, teacher_pred)
+
+        teacher_metrics.append({"teacher": video_id, "uar": uar, "war": war, "n": len(teacher_true)})
+
+    if not pooled_true:
+        print("\nNo matching ground-truth annotations found.")
+        return
+
+    # Pooled confusion matrix
+    cm = sk_confusion_matrix(pooled_true, pooled_pred, labels=CLASS_ORDER)
+
+    pooled_uar, pooled_war = _compute_metrics(pooled_true, pooled_pred)
+
+    print("\nPooled Confusion Matrix\n")
+    print("{:>12}".format("") + "".join(f"{l:>12}" for l in CLASS_ORDER))
+
+    for label, row in zip(CLASS_ORDER, cm):
+        print(f"{label:>12}" + "".join(f"{v:>12}" for v in row))
+
+    # Pooled metrics
+    mean_uar = sum(x["uar"] for x in teacher_metrics) / len(teacher_metrics)
+    mean_war = sum(x["war"] for x in teacher_metrics) / len(teacher_metrics)
+
+    print("\nPooled Metrics")
+    print(f"UAR: {pooled_uar:.4f} ({pooled_uar * 100:.2f}%)")
+    print(f"WAR: {pooled_war:.4f} ({pooled_war * 100:.2f}%)")
+    print(f"Samples: {len(pooled_true)}")
+
+    # Mean per-teacher metrics
+    print("\nMean Per-Teacher Metrics")
+    print(f"UAR: {mean_uar:.4f} ({mean_uar * 100:.2f}%)")
+    print(f"WAR: {mean_war:.4f} ({mean_war * 100:.2f}%)")
+    print(f"Teachers: {len(teacher_metrics)}")
+
+    # Individual teacher breakdown
+    print("\nTeacher Breakdown\n")
+    print(f"{'Teacher':>30} {'UAR':>10} {'WAR':>10} {'N':>8}")
+
+    for metric in teacher_metrics:
+        print(
+            f"{metric['teacher']:>30} "
+            f"{metric['uar']:>10.4f} "
+            f"{metric['war']:>10.4f} "
+            f"{metric['n']:>8}"
+        )
 
 class Inferencer:
     """Runs a trained MTKD student on raw audio with no ground-truth labels.
@@ -245,5 +373,10 @@ def infer_mtkd_cli(cfg: DictConfig) -> int:
 
     if infer_cfg.get("eval", True):
         annotations = collect_annotations(gather_files(input_path), infer_cfg.get("annotations_dir"))
-        print_confusion_matrix(results, annotations)
+
+        if infer_cfg.get("per_teacher", False):
+            print_per_teacher_metrics(results, annotations)
+        else:
+            print_confusion_matrix(results, annotations)
+
     return 0
