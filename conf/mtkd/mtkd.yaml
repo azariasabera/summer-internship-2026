@@ -67,7 +67,7 @@ infer:
   eval: true
   annotations_dir: ${paths.annotation_root} # null
   per_teacher: false
-  batch_size: null
+  batch_size: 8 # null
 
 # --- Runtime overrides for `tea extract-embeddings` ---
 embeddings:

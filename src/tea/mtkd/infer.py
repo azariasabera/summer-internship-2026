@@ -218,7 +218,7 @@ def infer_mtkd_cli(cfg: DictConfig) -> int:
         return 2
 
     inferencer = Inferencer(cfg, checkpoint=infer_cfg.get("checkpoint"))
-    batch_size = infer_cfg.get("batch_size", cfg.mtkd.hyperparams.batch_size)
+    batch_size = infer_cfg.get("batch_size") or cfg.mtkd.hyperparams.batch_size
 
     results = (
         inferencer.run_per_teacher(input_path, batch_size=batch_size)
