@@ -63,20 +63,31 @@ def collect_annotations(files: list[str], annotations_dir: str | None) -> dict:
     folders = {str(Path(f).parent) for f in files}
     return {Path(folder).name: _load_video_annotations(folder, annotations_dir) for folder in folders}
 
+def group_results_by_video(results: dict) -> dict:
+    """Reshape `{file_path: {"probabilities": ..., "prediction": ...}}` into
+    `{video_folder: {chunk_stem: {"probabilities": ..., "prediction": ...}}}`.
+    """
+    grouped: dict[str, dict] = defaultdict(dict)
+    for file_path, data in results.items():
+        p = Path(file_path)
+        grouped[p.parent.name][p.stem] = data
+    return grouped
 
 def print_confusion_matrix(results: dict, annotations: dict) -> None:
     """Print a confusion matrix over whichever inferred files have a matching ground-truth annotation."""
+    results = group_results_by_video(results)
     y_true, y_pred = [], []
-    for file_path, pred in results.items():
-        p = Path(file_path)
-        folder, stem = p.parent.name, p.stem
-        if folder not in annotations or stem not in annotations[folder]:
+    for video_id, chunks in results.items():
+        if video_id not in annotations:
             continue
-        gt = annotations[folder][stem]
-        if gt not in CLASS_ORDER:
-            continue
-        y_true.append(gt)
-        y_pred.append(pred["prediction"])
+        for chunk_stem, pred in chunks.items():
+            if chunk_stem not in annotations[video_id]:
+                continue
+            gt = annotations[video_id][chunk_stem]
+            if gt not in CLASS_ORDER:
+                continue
+            y_true.append(gt)
+            y_pred.append(pred["prediction"])
 
     if not y_true:
         print("\nNo matching ground-truth annotations found.")
@@ -87,7 +98,6 @@ def print_confusion_matrix(results: dict, annotations: dict) -> None:
     print("{:>12}".format("") + "".join(f"{l:>12}" for l in CLASS_ORDER))
     for label, row in zip(CLASS_ORDER, cm):
         print(f"{label:>12}" + "".join(f"{v:>12}" for v in row))
-
 
 class Inferencer:
     """Runs a trained MTKD student on raw audio with no ground-truth labels.
