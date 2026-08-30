@@ -174,7 +174,7 @@ def print_per_teacher_metrics(results: dict, annotations: dict) -> None:
                 continue
 
             for chunk_stem, pred in chunks.items():
-                if chunk_stem not in annotations:
+                if chunk_stem not in annotations[video_id]:
                     continue
 
                 gt = annotations[video_id][chunk_stem]
