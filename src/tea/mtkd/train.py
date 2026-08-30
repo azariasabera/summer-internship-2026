@@ -115,7 +115,7 @@ class Trainer:
         checkpoint_suffix:
             Appended to the checkpoint filename -- use this to keep
             noise-augmented runs from overwriting the plain checkpoint,
-            e.g. `f"_lr{lr}_{noise_type}_{snr_min}_{snr_max}dB"`.
+            e.g. `f"_{snr_min}_{snr_max}dB"`.
 
         Returns
         -------
@@ -220,7 +220,7 @@ def train_mtkd_cli(cfg: DictConfig) -> int:
 
     Requires `mtkd.linguality`/`mtkd.language`/`mtkd.session`. Optional
     `mtkd.mode` (train/finetune) and a noise block for the Table 21 "Retrain"
-    rows: `mtkd.noise.type` (single/full), `mtkd.noise.snr_min`, `mtkd.noise.snr_max`.
+    rows: `mtkd.noise.use` (true/false), `mtkd.noise.snr_min`, `mtkd.noise.snr_max`.
     """
     if cfg.mtkd.linguality is None or cfg.mtkd.language is None or cfg.mtkd.session is None:
         logger.error("Set mtkd.linguality / mtkd.language / mtkd.session")
@@ -229,15 +229,17 @@ def train_mtkd_cli(cfg: DictConfig) -> int:
     trainer = Trainer(cfg)
     augmentor, suffix = None, ""
     noise_cfg = cfg.mtkd.get("noise", None)
-    if noise_cfg and noise_cfg.get("type", "none") != "none":
+    use_noise_aug = noise_cfg.get("use", False)
+    if noise_cfg and use_noise_aug:
         aug_cfg = cfg.noise.augment
         augmentor = NoiseAugmentor(
             noise_path=aug_cfg.noise_path,  # point this at your single-clip or full-collection noise source
-            contam_prob=noise_cfg.get("contam_prob", aug_cfg.contam_prob),
+            contam_prob=noise_cfg.get("contam_prob", aug_cfg.get("contam_prob", 0.5)),
             snr_min=noise_cfg.get("snr_min", aug_cfg.snr_min),
             snr_max=noise_cfg.get("snr_max", aug_cfg.snr_max),
+            seed=aug_cfg.get("seed", 42)
         )
-        suffix = f"_lr{cfg.mtkd.get('lr', cfg.mtkd.hyperparams.learning_rate)}_{noise_cfg.type}_{noise_cfg.get('snr_min')}_{noise_cfg.get('snr_max')}dB"
+        suffix = f"_{noise_cfg.get('snr_min')}_{noise_cfg.get('snr_max')}dB"
 
     trainer.train(
         cfg.mtkd.linguality,
