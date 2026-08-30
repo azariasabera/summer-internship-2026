@@ -84,7 +84,7 @@ _STAGE3: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
 
 _STAGE4: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
     ("train-teacher", "tea.teachers", "train_teacher", "Monolingual teacher fine-tune (Triton)"),
-    ("train-mtkd", "tea.mtkd", "train_mtkd_cli", "Multilingual MTKD student train (Triton)"),
+    ("train-mtkd", "tea.mtkd.train", "train_mtkd_cli", "Multilingual MTKD student train (Triton)"),
     (
         "finetune-classroom",
         "tea.classroom.finetune",
@@ -100,7 +100,7 @@ _STAGE5: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
         "evaluate_mtkd_cli",
         "Evaluate a student checkpoint on held-out benchmark splits",
     ),
-    ("calibrate", "tea.mtkd", "calibrate_cli", "Temperature / bias calibration of a student checkpoint"),
+    ("calibrate", "tea.mtkd.calibrate", "calibrate_cli", "Temperature / bias calibration of a student checkpoint"),
 ]
 
 _ALL_STAGES: Final[list[tuple[str, list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]]]] = [
