@@ -230,10 +230,10 @@ class LOTOFineTuner:
         and confusion matrices, and writes `results_<tag>.json` under `cfg.paths.generated_root/classroom_finetune/`.
         """
         cc = self.cfg.classroom
-        set_seed(self.cfg.seed)
-        epochs = epochs if epochs is not None else cc.epochs
-        batch_size = batch_size if batch_size is not None else cc.batch_size
-        lr = lr if lr is not None else cc.lr
+        set_seed(self.cfg.get("seed", 42))
+        epochs = epochs if epochs is not None else cc.get("epochs", 5)
+        batch_size = batch_size if batch_size is not None else cc.get("batch_size", 8)
+        lr = lr if lr is not None else cc.get("lr", 2e-5)
 
         df = build_full_df(self.cfg.paths.audio_root, self.cfg.paths.annotation_root, set(cc.excluded_videos))
 
@@ -263,16 +263,35 @@ class LOTOFineTuner:
         baseline_pooled = _pool("baseline_actual", "baseline_predicted")
         finetuned_pooled = _pool("finetuned_actual", "finetuned_predicted")
 
+        # ── per-fold stats (mean ± std) for both metrics, both stages ────
+        stats = {}
+        for stage in ("baseline", "finetuned"):
+            for metric in ("uar", "war"):
+                vals = [r[f"{stage}_{metric}"] for r in results]
+                stats[f"{stage}_fold_{metric}s"] = [round(float(v), 4) for v in vals]
+                stats[f"{stage}_mean_{metric}"] = float(np.mean(vals))
+                stats[f"{stage}_std_{metric}"] = float(np.std(vals))
+
         logger.info("SUMMARY [%s]", tag)
-        logger.info("Baseline  pooled OOF UAR=%.4f WAR=%.4f", baseline_pooled["uar"], baseline_pooled["war"])
-        logger.info("Finetuned pooled OOF UAR=%.4f WAR=%.4f", finetuned_pooled["uar"], finetuned_pooled["war"])
+        for stage in ("baseline", "finetuned"):
+            logger.info("%s Fold UARs: %s", stage.capitalize(), stats[f"{stage}_fold_uars"])
+            logger.info("%s Fold WARs: %s", stage.capitalize(), stats[f"{stage}_fold_wars"])
+            logger.info("%s Mean UAR = %.4f ± %.4f", stage.capitalize(), stats[f"{stage}_mean_uar"], stats[f"{stage}_std_uar"])
+            logger.info("%s Mean WAR = %.4f ± %.4f", stage.capitalize(), stats[f"{stage}_mean_war"], stats[f"{stage}_std_war"])
+
+        logger.info(
+            "Baseline  pooled OOF UAR=%.4f WAR=%.4f\nConfusion matrix:\n%s",
+            baseline_pooled["uar"], baseline_pooled["war"], np.array(baseline_pooled["confusion_matrix"]),
+        )
+        logger.info(
+            "Finetuned pooled OOF UAR=%.4f WAR=%.4f\nConfusion matrix:\n%s",
+            finetuned_pooled["uar"], finetuned_pooled["war"], np.array(finetuned_pooled["confusion_matrix"]),
+        )
 
         return {
             "tag": tag, "per_fold": results,
             "baseline_pooled": baseline_pooled, "finetuned_pooled": finetuned_pooled,
-            "baseline_mean_uar": float(np.mean([r["baseline_uar"] for r in results])),
-            "finetuned_mean_uar": float(np.mean([r["finetuned_uar"] for r in results])),
-            "finetuned_std_uar": float(np.std([r["finetuned_uar"] for r in results])),
+            **stats,
         }
 
     def run_config(self, config_name: str, base_checkpoint: str | Path, variant: str, **kwargs) -> dict:
