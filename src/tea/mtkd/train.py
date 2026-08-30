@@ -233,11 +233,11 @@ def train_mtkd_cli(cfg: DictConfig) -> int:
     if noise_cfg and use_noise_aug:
         aug_cfg = cfg.noise.augment
         augmentor = NoiseAugmentor(
-            noise_path=aug_cfg.noise_path,  # point this at your single-clip or full-collection noise source
-            contam_prob=noise_cfg.get("contam_prob", aug_cfg.get("contam_prob", 0.5)),
-            snr_min=noise_cfg.get("snr_min", aug_cfg.snr_min),
-            snr_max=noise_cfg.get("snr_max", aug_cfg.snr_max),
-            seed=aug_cfg.get("seed", 42)
+            noise_path=aug_cfg.noise_path,
+            contam_prob=noise_cfg.get("contam_prob") or aug_cfg.get("contam_prob", 0.5),
+            snr_min=noise_cfg.get("snr_min") or aug_cfg.snr_min,
+            snr_max=noise_cfg.get("snr_max") or aug_cfg.snr_max,
+            seed=aug_cfg.get("seed", 42),
         )
         suffix = f"_{noise_cfg.get('snr_min')}_{noise_cfg.get('snr_max')}dB"
 
