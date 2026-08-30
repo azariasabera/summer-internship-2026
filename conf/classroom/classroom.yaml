@@ -13,7 +13,7 @@ internal_val_frac: 0.0  # 0 = fixed-epoch training, no dev split (see classroom_
 # --- LOTO fine-tuning defaults (overridden per experiment config below) ---
 epochs: 5
 batch_size: 8
-lr: null                # null -> 2e-6 for variant=full, 1e-4 for variant=head_only
+lr: 2e-5 # null                # null -> 2e-5 (or 2e-6) for variant=full, 1e-4 for variant=head_only
 
 # --- FESC contamination (report Table 16-20) ---
 fesc:
@@ -48,10 +48,10 @@ class_weight_clip_max: 6.0    # cap on inverse-frequency class weight
 
 # --- Runtime overrides for `tea finetune-classroom-loto` ---
 run:
-  base_checkpoint: null
+  base_checkpoint: ${paths.mtkd_student_ckpt} # null
   variant: null        # full | head_only
   config: null          # A | B | C | D | E | F (report Table 16) -- overrides the 3 switches below if set
   use_class_weight: false
   use_confidence_weight: false
   augment_fesc: false
-  save_model_dir: null
+  save_model_dir: ${paths.classroom_finetune_dir} # null
