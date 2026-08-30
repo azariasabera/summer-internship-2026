@@ -166,10 +166,10 @@ def print_per_teacher_metrics(results: dict, annotations: dict) -> None:
     teacher_metrics = []
     pooled_true, pooled_pred = [], []
 
-    for teacher_id in sorted(grouped_by_teacher):
+    for teacher_id, videos in sorted(grouped_by_teacher.items()):
         teacher_true, teacher_pred = [], []
 
-        for video_id, chunks in grouped_by_teacher:
+        for video_id, chunks in videos:
             if video_id not in annotations:
                 continue
 
