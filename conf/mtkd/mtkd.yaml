@@ -48,13 +48,14 @@ session: null      # 1-9 for FI | 1-5 for EN | 1 for FR
 mode: train        # train | finetune
 epochs: null       # null -> cfg.mtkd.hyperparams.n_epochs
 lr: null           # null -> cfg.mtkd.hyperparams.learning_rate (or finetune_lr)
+batch_size: null   # null -> cfg.mtkd.hyperparams.batch_size
 
 # Optional noise-augmented training.
 # Set noise.type to "single" or "full" to enable; contam_prob/snr_min/snr_max
 # fall back to conf/noise/noise.yaml's augment block if left null here.
 noise:
   type: none       # none | single | full
-  contam_prob: null
+  contam_prob: 0.5 # null
   snr_min: null
   snr_max: null
 
