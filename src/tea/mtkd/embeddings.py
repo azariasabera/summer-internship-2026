@@ -268,11 +268,7 @@ def extract_embeddings_cli(cfg: DictConfig) -> int:
     """
     emb_cfg = cfg.mtkd.get("embeddings", {})
     source = emb_cfg.get("source", "videos")
-    checkpoint = emb_cfg.get("checkpoint") or (
-        resolve(cfg.paths.checkpoint_root)
-        / "mtkd"
-        / f"MTKD_{cfg.mtkd.get('linguality', 'Multilingual')}_{cfg.mtkd.get('language', 'FI')}_S{cfg.mtkd.get('session', 8)}.pth"
-    )
+    checkpoint = emb_cfg.get("checkpoint") or cfg.mtkd.default_student_checkpoint
     output_dir = ensure_dir(resolve(emb_cfg.get("output_dir", cfg.paths.embedding_root)))
     layer_ids = [int(x) for x in str(emb_cfg.get("layers", "")).split(",") if x.strip()]
     batch_size = emb_cfg.get("batch_size", 16)
