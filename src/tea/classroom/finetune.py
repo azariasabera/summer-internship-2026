@@ -115,10 +115,19 @@ class LOTOFineTuner:
         logger.info("Fold (held out): %s  train=%d  test=%d", fold_name, len(train_df), len(test_df))
         logger.info("Before: %s", train_df.groupby("gt_label").size().to_dict())
 
+        audio_root = resolve(self.cfg.paths.chunk_audio_dir)
+        annotation_root = resolve(self.cfg.paths.annotation_root)
+
+        if not audio_root.exists():
+            raise FileNotFoundError(f"Chunk audio directory not found: {audio_root}")
+
+        if not annotation_root.exists():
+            raise FileNotFoundError(f"Annotation directory not found: {annotation_root}")
+
         # ── optional FESC contamination, TRAIN split only ────────────────
         if augment_fesc:
             noise_pool = build_noise_pool_for_fold(
-                self.cfg.paths.annotation_root, self.cfg.paths.audio_root, train_df,
+                annotation_root, audio_root, train_df,
                 extra_video_ids=tuple(cc.fesc.noise_extra_videos),
             )
             snr_stats = estimate_snr_stats(train_df, noise_pool["dynamic"] + noise_pool["mic"], seed=self.cfg.seed)
@@ -248,7 +257,7 @@ class LOTOFineTuner:
         logger.info("Annotation directory: %s", annotation_root)
 
         df = build_full_df(audio_root, annotation_root, set(cc.excluded_videos))
-        
+
         results = []
         for fold_name, held_out, train_df, test_df in teacher_grouped_folds(df, n_splits=cc.cv):
             results.append(
