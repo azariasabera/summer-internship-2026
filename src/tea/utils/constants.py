@@ -12,8 +12,8 @@ from __future__ import annotations
 # Emotion classes in the order used by MTKD / teachers / all report tables
 CLASS_ORDER: list[str] = ["neutral", "sadness", "happiness", "anger"]
 
-LABEL2ID: dict[str, int] = {c: i for i, c in enumerate(CLASS_ORDER)}
-ID2LABEL: dict[int, str] = {i: c for i, c in enumerate(CLASS_ORDER)}
+LABEL2ID: dict[str, str] = {c: str(i) for i, c in enumerate(CLASS_ORDER)}
+ID2LABEL: dict[str, str] = {str(i): c for i, c in enumerate(CLASS_ORDER)}
 
 # 3-class sentiment mapping used by some probes / text models
 SENTIMENT_ORDER: list[str] = ["neutral", "negative", "positive"]
