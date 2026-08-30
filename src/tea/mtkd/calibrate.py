@@ -153,7 +153,7 @@ class Calibrator:
             The fitted temperature T.
         """
         ckpt_path = checkpoint or (
-            Path(self.cfg.paths.checkpoint_root) / "mtkd" / f"MTKD_{linguality}_{language}_S{session}.pth"
+            Path(self.cfg.paths.student_ckpt_dir) / f"MTKD_{linguality}_{language}_S{session}.pth"
         )
         model, epoch = load_student(self.cfg, ckpt_path, self.device)
         logger.info("Loaded checkpoint (epoch %s) from %s", epoch, ckpt_path)
