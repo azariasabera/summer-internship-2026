@@ -144,6 +144,10 @@ def print_confusion_matrix(results: dict, annotations: dict) -> None:
 def print_per_teacher_metrics(results: dict, annotations: dict) -> None:
     """Print pooled confusion matrix/metrics and mean per-teacher metrics.
 
+    Videos belonging to the same teacher are combined before calculating
+    per-teacher metrics. For example, `1B2251` and `1B2251_video2`
+    are treated as one teacher: `1B2251`.
+
     Pooled metrics:
         All teacher predictions are pooled together before computing metrics.
 
@@ -153,43 +157,47 @@ def print_per_teacher_metrics(results: dict, annotations: dict) -> None:
     """
     grouped_results = group_results_by_video(results)
 
+    grouped_by_teacher: dict[str, list[tuple[str, dict]]] = defaultdict(list)
+
+    for video_id, chunks in grouped_results.items():
+        teacher_id = get_teacher_id(video_id)
+        grouped_by_teacher[teacher_id].append((video_id, chunks))
+
     teacher_metrics = []
     pooled_true, pooled_pred = [], []
 
-    for video_id, chunks in sorted(grouped_results.items()):
-        if video_id not in annotations:
-            continue
-
+    for teacher_id in sorted(grouped_by_teacher):
         teacher_true, teacher_pred = [], []
 
-        for chunk_stem, pred in chunks.items():
-            if chunk_stem not in annotations[video_id]:
+        for video_id, chunks in grouped_by_teacher:
+            if video_id not in annotations:
                 continue
 
-            gt = annotations[video_id][chunk_stem]
-            if gt not in CLASS_ORDER:
-                continue
+            for chunk_stem, pred in chunks.items():
+                if chunk_stem not in annotations:
+                    continue
 
-            teacher_true.append(gt)
-            teacher_pred.append(pred["prediction"])
+                gt = annotations[video_id][chunk_stem]
+                if gt not in CLASS_ORDER:
+                    continue
+
+                teacher_true.append(gt)
+                teacher_pred.append(pred["prediction"])
 
         if not teacher_true:
             continue
 
-        # Add this teacher's predictions to the pooled evaluation.
         pooled_true.extend(teacher_true)
         pooled_pred.extend(teacher_pred)
 
-        # Calculate metrics independently for this teacher.
         uar, war = _compute_metrics(teacher_true, teacher_pred)
 
-        teacher_metrics.append({"teacher": video_id, "uar": uar, "war": war, "n": len(teacher_true)})
+        teacher_metrics.append({"teacher": teacher_id, "uar": uar, "war": war, "n": len(teacher_true)})
 
     if not pooled_true:
         print("\nNo matching ground-truth annotations found.")
         return
 
-    # Pooled confusion matrix
     cm = sk_confusion_matrix(pooled_true, pooled_pred, labels=CLASS_ORDER)
 
     pooled_uar, pooled_war = _compute_metrics(pooled_true, pooled_pred)
@@ -200,28 +208,23 @@ def print_per_teacher_metrics(results: dict, annotations: dict) -> None:
     for label, row in zip(CLASS_ORDER, cm):
         print(f"{label:>12}" + "".join(f"{v:>12}" for v in row))
 
-    # Pooled metrics
     mean_uar = sum(x["uar"] for x in teacher_metrics) / len(teacher_metrics)
     mean_war = sum(x["war"] for x in teacher_metrics) / len(teacher_metrics)
 
     print("\nPooled Metrics")
     print(f"UAR: {pooled_uar:.4f} ({pooled_uar * 100:.2f}%)")
     print(f"WAR: {pooled_war:.4f} ({pooled_war * 100:.2f}%)")
-    print(f"Samples: {len(pooled_true)}")
 
-    # Mean per-teacher metrics
     print("\nMean Per-Teacher Metrics")
     print(f"UAR: {mean_uar:.4f} ({mean_uar * 100:.2f}%)")
     print(f"WAR: {mean_war:.4f} ({mean_war * 100:.2f}%)")
-    print(f"Teachers: {len(teacher_metrics)}")
 
-    # Individual teacher breakdown
     print("\nTeacher Breakdown\n")
-    print(f"{'Teacher':>30} {'UAR':>10} {'WAR':>10} {'N':>8}")
+    print(f"{'Teacher':>20} {'UAR':>10} {'WAR':>10} {'N':>8}")
 
     for metric in teacher_metrics:
         print(
-            f"{metric['teacher']:>30} "
+            f"{metric['teacher']:>20} "
             f"{metric['uar']:>10.4f} "
             f"{metric['war']:>10.4f} "
             f"{metric['n']:>8}"
