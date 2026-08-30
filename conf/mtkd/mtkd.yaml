@@ -72,11 +72,22 @@ infer:
 # --- Runtime overrides for `tea extract-embeddings` ---
 embeddings:
   source: videos     # videos | fesc | iemocap | cafe
-  input_dir: null
-  output_dir: null
-  annotations_dir: null
-  checkpoint: null
-  sessions: all
-  splits: "train,test,dev"
-  layers: ""
+
+  # Used only when source=videos
+  input_dir: ${paths.chunk_audio_dir}
+  annotations_dir: ${paths.annotation_root}
+
+  output_dir: ${paths.embedding_root}
+  checkpoint: ${mtkd.default_student_checkpoint}
+
+  # Used only when source=fesc|iemocap|cafe
+  sessions: all      # e.g. 6 or 6,8,9
+  splits: "train,test,dev"  # e.g. test or train,dev
+
+  # Additional transformer layers to save (always optional)
+  # Wav2Vec2-base has 12 transformer blocks.
+  # Valid hidden-state indices are 0-12, where 0 is the feature encoder
+  # output and 1-12 are transformer block outputs.
+  layers: ""         # e.g. 1,3,6,9,12
+
   batch_size: 16
