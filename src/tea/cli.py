@@ -44,7 +44,7 @@ _STAGE1: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
     ("apply-asr", "tea.asr", "transcribe_annotation_root", "Whisper transcribe + translate on speech chunks"),
     ("denoise", "tea.noise", "denoise", "DeepFilterNet or spectral subtraction (optional)"),
     ("extract-noise", "tea.noise", "extract_noise", "Build non-speech noise pool from annotated videos"),
-    ("sentiment", "tea.features", "sentiment_cli", "FI/EN text-sentiment probabilities from transcripts"),
+    ("sentiment", "tea.features.sentiment", "sentiment_cli", "FI/EN text-sentiment probabilities from transcripts"),
 ]
 
 _STAGE2: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
@@ -73,10 +73,10 @@ _STAGE3: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
         "Acoustic feature box-plots by predicted emotion",
     ),
     ("confidence", "tea.confidence", "confidence_cli", "Binary / TCP / instance-temperature reliability"),
-    ("probe-child-speech", "tea.probes", "probe_child_speech_cli", "Child-speech logistic probe on embeddings"),
+    ("probe-child-speech", "tea.probes.child_speech", "probe_child_speech_cli", "Child-speech logistic probe on embeddings"),
     (
         "probe-feature-fusion",
-        "tea.probes",
+        "tea.probes.feature_fusion",
         "probe_feature_fusion_cli",
         "Handcrafted + embedding feature-fusion tables",
     ),
