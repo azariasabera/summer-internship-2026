@@ -190,7 +190,7 @@ def probe_feature_fusion_cli(cfg: DictConfig) -> int:
         return 2
 
     df, mtkd_classes, sentiment_classes = build_master_table(
-        csv_root=cfg.paths.annotation_root, audio_root=cfg.paths.audio_root,
+        csv_root=cfg.paths.annotation_root, audio_root=cfg.paths.chunk_audio_dir,
         mtkd_json_path=ff.mtkd_json, sentiment_fi_json_path=ff.sentiment_fi_json,
         sentiment_en_json_path=ff.get("sentiment_en_json"),
         embedding_root=ff.get("embedding_root") or cfg.paths.embedding_root,
