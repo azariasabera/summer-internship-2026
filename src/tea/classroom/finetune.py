@@ -293,21 +293,77 @@ class LOTOFineTuner:
                 stats[f"{stage}_mean_{metric}"] = float(np.mean(vals))
                 stats[f"{stage}_std_{metric}"] = float(np.std(vals))
 
-        logger.info("SUMMARY [%s]", tag)
-        for stage in ("baseline", "finetuned"):
-            logger.info("%s Fold UARs: %s", stage.capitalize(), stats[f"{stage}_fold_uars"])
-            logger.info("%s Fold WARs: %s", stage.capitalize(), stats[f"{stage}_fold_wars"])
-            logger.info("%s Mean UAR = %.4f ± %.4f", stage.capitalize(), stats[f"{stage}_mean_uar"], stats[f"{stage}_std_uar"])
-            logger.info("%s Mean WAR = %.4f ± %.4f", stage.capitalize(), stats[f"{stage}_mean_war"], stats[f"{stage}_std_war"])
 
         logger.info(
-            "Baseline  pooled OOF UAR=%.4f WAR=%.4f\nConfusion matrix:\n%s",
-            baseline_pooled["uar"], baseline_pooled["war"], np.array(baseline_pooled["confusion_matrix"]),
+            "\nBASELINE (Pooled OOF)\n"
+            "UAR=%.4f WAR=%.4f\n"
+            "CM:\n%s",
+            baseline_pooled["uar"],
+            baseline_pooled["war"],
+            np.array(baseline_pooled["confusion_matrix"]),
         )
+
         logger.info(
-            "Finetuned pooled OOF UAR=%.4f WAR=%.4f\nConfusion matrix:\n%s",
-            finetuned_pooled["uar"], finetuned_pooled["war"], np.array(finetuned_pooled["confusion_matrix"]),
+            "\nBASELINE (Mean Fold)\n"
+            "UAR=%.4f ± %.4f\n"
+            "WAR=%.4f ± %.4f",
+            stats["baseline_mean_uar"],
+            stats["baseline_std_uar"],
+            stats["baseline_mean_war"],
+            stats["baseline_std_war"],
         )
+
+        logger.info(
+            "\nFINETUNED (Pooled OOF)\n"
+            "UAR=%.4f WAR=%.4f\n"
+            "CM:\n%s",
+            finetuned_pooled["uar"],
+            finetuned_pooled["war"],
+            np.array(finetuned_pooled["confusion_matrix"]),
+        )
+
+        logger.info(
+            "\nFINETUNED (Mean Fold)\n"
+            "UAR=%.4f ± %.4f\n"
+            "WAR=%.4f ± %.4f",
+            stats["finetuned_mean_uar"],
+            stats["finetuned_std_uar"],
+            stats["finetuned_mean_war"],
+            stats["finetuned_std_war"],
+        )
+
+        #  write a plain-text summary report (per-fold + pooled)
+        lines = [f"SUMMARY [{tag}]", "=" * 70]
+
+        for stage in ("baseline", "finetuned"):
+            lines.append(f"\n{stage.capitalize()}")
+            lines.append(f"  Fold UARs: {stats[f'{stage}_fold_uars']}")
+            lines.append(f"  Fold WARs: {stats[f'{stage}_fold_wars']}")
+            lines.append(f"  Mean UAR = {stats[f'{stage}_mean_uar']:.4f} ± {stats[f'{stage}_std_uar']:.4f}")
+            lines.append(f"  Mean WAR = {stats[f'{stage}_mean_war']:.4f} ± {stats[f'{stage}_std_war']:.4f}")
+
+        lines.append("\n" + "=" * 70)
+        lines.append("PER-FOLD DETAIL")
+        lines.append("=" * 70)
+        for r in results:
+            lines.append(f"\nFold (held out): {r['fold']}  n_train={r['n_train']}  n_val={r['n_val']}  n_test={r['n_test']}")
+            for stage in ("baseline", "finetuned"):
+                cm = confusion_matrix(r[f"{stage}_actual"], r[f"{stage}_predicted"], labels=ALL_LABELS)
+                lines.append(f"  [{stage}] UAR={r[f'{stage}_uar']:.4f} WAR={r[f'{stage}_war']:.4f}")
+                lines.append(f"  [{stage}] Confusion matrix:\n{np.array2string(cm, prefix='    ')}")
+
+        lines.append("\n" + "=" * 70)
+        lines.append("POOLED OUT-OF-FOLD")
+        lines.append("=" * 70)
+        lines.append(f"Baseline  UAR={baseline_pooled['uar']:.4f} WAR={baseline_pooled['war']:.4f}")
+        lines.append(f"Baseline  Confusion matrix:\n{np.array(baseline_pooled['confusion_matrix'])}")
+        lines.append(f"Finetuned UAR={finetuned_pooled['uar']:.4f} WAR={finetuned_pooled['war']:.4f}")
+        lines.append(f"Finetuned Confusion matrix:\n{np.array(finetuned_pooled['confusion_matrix'])}")
+
+        summary_text = "\n".join(lines)
+        summary_path = output_dir / f"summary_{tag}.txt"
+        summary_path.write_text(summary_text, encoding="utf-8")
+        logger.info("Saved summary report -> %s", summary_path)
 
         return {
             "tag": tag, "per_fold": results,
