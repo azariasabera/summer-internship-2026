@@ -232,6 +232,7 @@ dependencies:
       - regex==2024.4.16
       - safetensors==0.4.3
       - scikit-image==0.23.2
+      - sentencepiece==0.2.2
       - stack-data==0.6.3
       - tifffile==2024.5.10
       - tokenizers==0.15.2
