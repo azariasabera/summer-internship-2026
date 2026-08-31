@@ -6,6 +6,8 @@ three_class: false       # evaluate-classroom: also report the 3-class polarity 
 audio_root: ${paths.audio_root} # null         # acoustic-by-emotion: full per-video audio (not chunks) -- loudness skipped if unset
 output_dir: ${paths.analysis.analysis_output_dir}
 
+annotation_dir: ${paths.annotation_root}
+
 # noise-analysis (report Table 21)
 # noise_conditions: null   # mapping of condition name -> prediction json path
 noise_conditions:
