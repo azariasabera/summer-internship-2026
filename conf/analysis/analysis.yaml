@@ -12,6 +12,9 @@ annotation_dir: ${paths.annotation_root}
 # noise_conditions: null   # mapping of condition name -> prediction json path
 noise_conditions:
   original: ${paths.infer.infer_output_path}
+  retrain_5_15dB: generated/mtkd_inference/infer_result_5_15.json
+  retrain_10_25dB: generated/mtkd_inference/infer_result_10_25.json
+  retrain_15_30dB: generated/mtkd_inference/infer_result_15_30.json
   
 check_non_speech: false  # also report each condition's non-speech-chunk prediction distribution
 
