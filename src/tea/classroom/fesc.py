@@ -401,6 +401,8 @@ def contaminate_fesc(
             noise = _composite_noise(noise_pool_paths, len(speech), n_sources=n_noise_sources)
             snr_db = float(
                 np.clip(
+                    # I intentionally used the configurable augmentation std (snr_std_db) rather than
+                    # snr_stats["std_snr_db"] for the SNR sampling.
                     random.gauss(snr_stats["mean_snr_db"], snr_std_db),
                     a_min=snr_clip_min_db,
                     a_max=snr_clip_max_db,
