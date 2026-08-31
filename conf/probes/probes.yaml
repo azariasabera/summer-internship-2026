@@ -8,9 +8,9 @@ child_speech:
   output_dir: ${paths.probes.child_speech_out_dir}
 
 feature_fusion:
-  mtkd_json: null           # required
-  sentiment_fi_json: null   # required
-  sentiment_en_json: null
+  mtkd_json: ${paths.chunk_meta_dir} # null           # required
+  sentiment_fi_json: ${paths.sentiment_fi} # null   # required
+  sentiment_en_json: ${paths.sentiment_fi} # null
   embedding_root: null      # defaults to paths.embedding_root
   base: null                 # null -> run both "softmax" and "embedding"; or restrict to one
   output_dir: ${paths.probes.feature_fusion_out_dir}
