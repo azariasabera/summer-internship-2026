@@ -74,4 +74,4 @@ probes:
   feature_fusion_out_dir: ${paths.generated_root}/probes/feature_fusion
 
 infer:
-  infer_ouput_path: ${paths.generated_root}/mtkd_inference/infer_result.json
+  infer_output_path: ${paths.generated_root}/mtkd_inference/infer_result.json

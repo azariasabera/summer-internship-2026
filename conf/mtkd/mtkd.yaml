@@ -63,7 +63,7 @@ infer:
   input: ${paths.chunk_audio_dir} # null
   checkpoint: ${paths.mtkd_student_ckpt} # null
   save_output: true
-  output: ${paths.infer.infer_ouput_path} # null
+  output: ${paths.infer.infer_output_path} # null
   eval: true
   annotations_dir: ${paths.annotation_root} # null
   per_teacher: false
