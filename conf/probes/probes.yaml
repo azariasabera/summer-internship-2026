@@ -8,7 +8,7 @@ child_speech:
   output_dir: ${paths.probes.child_speech_out_dir}
 
 feature_fusion:
-  mtkd_json: ${paths.chunk_meta_dir} # null           # required
+  mtkd_json: ${paths.infer.infer_output_path} # null           # required
   sentiment_fi_json: ${paths.sentiment_fi} # null   # required
   sentiment_en_json: ${paths.sentiment_fi} # null
   embedding_root: null      # defaults to paths.embedding_root
