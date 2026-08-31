@@ -58,7 +58,7 @@ def confidence_cli(cfg) -> int:
         return 2
 
     df, mtkd_classes, sentiment_classes = build_master_table(
-        csv_root=cfg.paths.annotation_root, audio_root=cfg.paths.audio_root,
+        csv_root=cfg.paths.annotation_root, audio_root=cfg.paths.chunk_audio_dir,
         mtkd_json_path=cc.mtkd_json, sentiment_fi_json_path=cc.sentiment_fi_json,
         sentiment_en_json_path=cc.get("sentiment_en_json"),
         use_three_class=cc.get("use_three_class", False),
@@ -75,7 +75,7 @@ def confidence_cli(cfg) -> int:
     video_ids = df["video_id"].to_numpy()
     raw_mtkd_probs = df[mtkd_prob_cols].to_numpy()
 
-    methods = cc.get("methods", "binary,tcp,temperature").split(",")
+    methods = list(cc.get("methods", ["binary", "tcp", "temperature"]))
     all_results = {}
 
     if "binary" in methods:
