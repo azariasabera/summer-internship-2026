@@ -1,13 +1,16 @@
 # conf/analysis/analysis.yaml
 
 # Shared across evaluate-classroom / acoustic-by-emotion / temporal
-mtkd_json: null          # required: MTKD prediction JSON path
+mtkd_json: ${paths.infer.infer_output_path} # null          # required: MTKD prediction JSON path
 three_class: false       # evaluate-classroom: also report the 3-class polarity comparison
-audio_root: null         # acoustic-by-emotion: full per-video audio (not chunks) -- loudness skipped if unset
+audio_root: ${paths.audio_root} # null         # acoustic-by-emotion: full per-video audio (not chunks) -- loudness skipped if unset
 output_dir: ${paths.analysis.analysis_output_dir}
 
 # noise-analysis (report Table 21)
-noise_conditions: null   # mapping of condition name -> prediction json path
+# noise_conditions: null   # mapping of condition name -> prediction json path
+noise_conditions:
+  original: ${paths.infer.infer_output_path}
+  
 check_non_speech: false  # also report each condition's non-speech-chunk prediction distribution
 
 emotion_arc:
