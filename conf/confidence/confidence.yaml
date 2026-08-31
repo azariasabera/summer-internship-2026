@@ -1,10 +1,10 @@
 # conf/confidence/confidence.yaml
 
-mtkd_json: null           # required: MTKD prediction JSON path
-sentiment_fi_json: null   # required
-sentiment_en_json: null   # optional
+mtkd_json: ${paths.infer.infer_output_path} # null           # required: MTKD prediction JSON path
+sentiment_fi_json: ${paths.sentiment_fi} # null   # required
+sentiment_en_json: ${paths.sentiment_en} # null   # optional
 use_three_class: false    # false = native 4-class MTKD; true = 3-class polarity mapping
-methods: "binary,tcp,temperature"
+methods: [binary, tcp, temperature]
 output_dir: ${paths.confidence.confidence_output_dir}
 
 # Shared reliability-net training hyperparameters (all three nets)
