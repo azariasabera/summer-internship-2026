@@ -39,6 +39,8 @@ def denoise(cfg: DictConfig) -> int:
     logger.info("Denoising %d file(s) with method=%s -> %s", len(json_files), method, out_dir)
 
     if method == "deepfilter":
+        # add cfg.noise.deepfilter.atten_lim_db to out_dir to save the atten_lim_db value in the output directory name
+        out_dir = ensure_dir(out_dir / f"atten_lim_db_{cfg.noise.deepfilter.atten_lim_db}")
         denoiser = Denoiser(cfg)
 
         try:
