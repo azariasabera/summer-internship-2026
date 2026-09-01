@@ -154,7 +154,10 @@ class LOTOFineTuner:
                 fit_df, use_class_weight, use_confidence_weight, class_weights,
                 confidence_discount_map=dict(cc.confidence_discount), augmented_discount=cc.augmented_discount,
             )
+            confidence_discount_map = {int(k): v for k, v in cc.confidence_discount.items()}
             logger.info("Class weights: %s", {CLASS_ORDER[i]: round(float(w), 4) for i, w in enumerate(class_weights)})
+            logger.info("confidence_discount_map=%r (key types: %s)", confidence_discount_map, {type(k) for k in confidence_discount_map})
+            logger.info("mean loss_weight by confidence: %s", fit_df.groupby("confidence")["loss_weight"].mean().to_dict())
         else:
             logger.info("No class weighting.")
 
