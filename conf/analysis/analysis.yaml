@@ -12,9 +12,9 @@ annotation_dir: ${paths.annotation_root}
 # noise_conditions: null   # mapping of condition name -> prediction json path
 noise_conditions:
   original: ${paths.infer.infer_output_path}
-  deepfilternet_15dB: ${paths.noise.deepfilter_save_dir}/infer_result_15dB.json
-  deepfilternet_0dB: ${paths.noise.deepfilter_save_dir}/infer_result_0dB.json
-  spectral_subtraction: ${paths.noise.spectral_save_dir}/infer_result_spectral.json
+  deepfilternet_15dB: generated/mtkd_inference/infer_result_15dB.json
+  deepfilternet_0dB: generated/mtkd_inference/infer_result_0dB.json
+  spectral_subtraction: generated/mtkd_inference/infer_result_spectral.json
   retrain_5_15dB: generated/mtkd_inference/infer_result_5_15.json
   retrain_10_25dB: generated/mtkd_inference/infer_result_10_25.json
   retrain_15_30dB: generated/mtkd_inference/infer_result_15_30.json
