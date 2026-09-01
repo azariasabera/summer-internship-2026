@@ -80,6 +80,7 @@ _STAGE3: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
         "probe_feature_fusion_cli",
         "Handcrafted + embedding feature-fusion tables",
     ),
+    ("emotion-arc", "tea.analysis", "emotion_arc_per_video", "Emotion arc plots per video (smoothed)"),
 ]
 
 _STAGE4: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
