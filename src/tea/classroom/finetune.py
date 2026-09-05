@@ -9,14 +9,12 @@ comparison per fold, plus a pooled out-of-fold summary.
 from __future__ import annotations
 
 import json
-import os
-from argparse import Namespace
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from sklearn.metrics import confusion_matrix, recall_score
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
@@ -39,6 +37,8 @@ from tea.utils.constants import CLASS_ORDER
 from tea.utils.logging import get_logger
 from tea.utils.paths import ensure_dir, resolve
 # from tea.utils.seed import set_seed
+
+# from tea.noise.rir import RIRAugmentor  # I will uncomment this when I add RIR augmentation option
 
 logger = get_logger(__name__)
 

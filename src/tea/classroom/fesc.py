@@ -8,6 +8,8 @@ classroom domain instead of raw close-talk acted audio.
 RIR (room impulse response) augmentation is available as an OPTIONAL.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import random
