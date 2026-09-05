@@ -175,8 +175,6 @@ class LOTOFineTuner:
 
         # fine-tune
         freeze_for_variant(model, variant)
-        default_lr = 2e-6 if variant == "full" else 1e-4
-        lr = lr or default_lr
         optimizer = torch.optim.AdamW(
             [p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=cc.weight_decay
         )
@@ -247,7 +245,8 @@ class LOTOFineTuner:
         set_seed(self.cfg.get("seed", 42))
         epochs = epochs if epochs is not None else cc.get("epochs", 5)
         batch_size = batch_size if batch_size is not None else cc.get("batch_size", 8)
-        lr = lr if lr is not None else cc.get("lr", 2e-5)
+        default_lr = 2e-5 if variant == "full" else 1e-4
+        lr = lr or default_lr
 
         feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(cc.model_ckpt)
 
@@ -408,5 +407,8 @@ def finetune_classroom_cli(cfg: DictConfig) -> int:
         use_confidence_weight=cc.get("use_confidence_weight", False),
         augment_fesc=cc.get("augment_fesc", False),
         save_model_dir=save_model_dir,
+        epochs=cc.get("epochs", 5),
+        lr=cc.get("lr", None),
+        batch_size=cc.get("batch_size", 8),
     )
     return 0
