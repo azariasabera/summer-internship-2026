@@ -50,18 +50,21 @@ def extract_acoustic_features(audio_path: str, sr: int = 16_000) -> dict:
         f0, voiced_flag = None, None
 
     if f0 is None or voiced_flag is None:
-        f0_mean, f0_std, voiced_ratio = np.nan, np.nan, np.nan
+        voiced_ratio = np.nan
+        voiced_f0 = np.array([])
     else:
-        voiced_mask = np.asarray(voiced_flag, dtype=bool)
-        voiced_f0 = np.asarray(f0)[voiced_mask]
+        voiced_flag = np.nan_to_num(voiced_flag.astype(float))
+        voiced_ratio = float(np.mean(voiced_flag)) if voiced_flag.size else 0.0
+        voiced_f0 = f0[voiced_flag.astype(bool)]
         voiced_f0 = voiced_f0[~np.isnan(voiced_f0)]
-        voiced_ratio = float(np.mean(voiced_mask)) if voiced_mask.size else 0.0
-        if voiced_f0.size:
-            f0_mean, f0_std = float(np.mean(voiced_f0)), float(np.std(voiced_f0))
-        else:
-            f0_mean, f0_std = np.nan, np.nan
 
-    return dict(rms_mean=float(np.mean(rms)), rms_std=float(np.std(rms)), f0_mean=f0_mean, f0_std=f0_std, voiced_ratio=voiced_ratio)
+    return dict(
+        rms_mean=float(np.mean(rms)),
+        rms_std=float(np.std(rms)),
+        f0_mean=float(np.mean(voiced_f0)) if voiced_f0.size else 0.0,
+        f0_std=float(np.std(voiced_f0)) if voiced_f0.size else 0.0,
+        voiced_ratio=voiced_ratio,
+    )
 
 
 def batch_extract_acoustic_features(df: pd.DataFrame, audio_path_col: str = "audio_path", sr: int = 16_000, log_every: int = 100) -> pd.DataFrame:
