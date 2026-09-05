@@ -15,3 +15,5 @@ hyperparams:
   weight_decay: 1.0e-3
   patience: 30
   seed: 42
+
+exclude_videos: [1B3261]

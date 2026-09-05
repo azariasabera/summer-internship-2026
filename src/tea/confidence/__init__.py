@@ -61,8 +61,12 @@ def confidence_cli(cfg) -> int:
         csv_root=cfg.paths.annotation_root, audio_root=cfg.paths.chunk_audio_dir,
         mtkd_json_path=cc.mtkd_json, sentiment_fi_json_path=cc.sentiment_fi_json,
         sentiment_en_json_path=cc.get("sentiment_en_json"),
-        use_three_class=cc.get("use_three_class", False),
+        use_three_class=cc.get("use_three_class", False), excluded_videos=cc.exclude_videos,
     )
+
+    logger.info("Master table shape: %s", df.shape)
+    logger.info("Master table columns: %s", df.columns.tolist())
+    logger.info("Sample rows:\n%s", df.head(5).to_string())
 
     mtkd_prob_cols = [f"mtkd_{c}" for c in mtkd_classes]
     text_fi_cols = [f"text_fi_{c}" for c in sentiment_classes]
