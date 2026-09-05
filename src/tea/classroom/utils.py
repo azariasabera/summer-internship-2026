@@ -8,6 +8,8 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoModelForAudioClassification
 
+from omegaconf import DictConfig
+
 from tea.utils.constants import CLASS_ORDER, LABEL2ID, ID2LABEL
 
 CONFIDENCE_DISCOUNT = {1: 0.7, 2: 0.85, 3: 1.0}
