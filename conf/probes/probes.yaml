@@ -8,9 +8,23 @@ child_speech:
   output_dir: ${paths.probes.child_speech_out_dir}
 
 feature_fusion:
-  mtkd_json: ${paths.infer.infer_output_path} # null           # required
-  sentiment_fi_json: ${paths.sentiment_fi} # null   # required
-  sentiment_en_json: ${paths.sentiment_fi} # null
-  embedding_root: null      # defaults to paths.embedding_root
-  base: null                 # null -> run both "softmax" and "embedding"; or restrict to one
-  output_dir: ${paths.probes.feature_fusion_out_dir}
+  # Required
+  mtkd_json: ${paths.infer.infer_output_path}          # or hard-code a path
+  sentiment_fi_json: ${paths.sentiment_fi}
+
+  # Optional
+  sentiment_en_json: ${paths.sentiment_en}   # null if you don’t have it
+  embedding_root: ${paths.embedding_root}         # null → skip embeddings
+  audio_root: ${paths.chunk_audio_dir}            # needed only if you want acoustic
+
+  # Behaviour
+  base: null          # null = run both "softmax" and "embedding"
+                      # or set to "softmax" / "embedding" to run only one
+  seed: ${seed}
+
+  # Output
+  output_dir: ${paths.probes.feature_fusion_out_dir}/feature_fusion
+  save_master_table: true          # also write a pickle of the built table
+  master_table_name: master_table.pkl
+  
+  exclude: [1B3261]
