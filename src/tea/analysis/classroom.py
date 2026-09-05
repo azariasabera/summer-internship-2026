@@ -201,7 +201,7 @@ def evaluate_classroom_cli(cfg: DictConfig) -> int:
         logger.error("Set analysis.mtkd_json")
         return 2
 
-    df = join_predictions(ac.mtkd_json, cfg.paths.annotation_root, excluded_videos=set(cfg.classroom.excluded_videos))
+    df = join_predictions(ac.mtkd_json, cfg.paths.annotation_root) #, excluded_videos=set(cfg.classroom.excluded_videos))
 
     logger.info("=== 4-class evaluation ===")
     per_video, overall = evaluate_per_video_and_overall(df, labels=CLASS_ORDER)
