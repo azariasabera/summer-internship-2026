@@ -9,12 +9,14 @@ comparison per fold, plus a pooled out-of-fold summary.
 from __future__ import annotations
 
 import json
+import os
+from argparse import Namespace
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import torch
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from sklearn.metrics import confusion_matrix, recall_score
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
@@ -22,28 +24,33 @@ from transformers import Wav2Vec2FeatureExtractor
 
 from tea.classroom.data import build_full_df, internal_val_split, teacher_grouped_folds, to_hf_dataset
 from tea.classroom.fesc import build_noise_pool_for_fold, contaminate_fesc, estimate_snr_stats, fesc_pool_df
-from tea.mtkd.model import load_model
-from tea.mtkd.utils import (
+from tea.classroom.utils import ( # these utils are also found in `tea.mtkd.utils` and `tea.mtkd.model`
     attach_loss_weight_column,
     collate_fn_weighted,
     compute_class_weights,
     freeze_for_variant,
+    load_model,
     preprocess_function,
+    set_seed,
     weighted_ce,
 )
+
 from tea.utils.constants import CLASS_ORDER
 from tea.utils.logging import get_logger
 from tea.utils.paths import ensure_dir, resolve
-from tea.utils.seed import set_seed
+# from tea.utils.seed import set_seed
 
 logger = get_logger(__name__)
 
 ALL_LABELS = list(range(len(CLASS_ORDER)))
 
 
-def _make_loader(df: pd.DataFrame, feature_extractor, max_duration_sec: float, batch_size: int, shuffle: bool = False) -> DataLoader:
+def _make_loader(df: pd.DataFrame, feature_extractor, max_duration_sec: float, 
+                 batch_size: int, shuffle: bool = False) -> DataLoader:
     ds = to_hf_dataset(df).map(
-        lambda ex: preprocess_function(ex, feature_extractor, max_duration_sec), remove_columns="audio", batched=True
+        lambda ex: preprocess_function(ex, feature_extractor, max_duration_sec),
+        remove_columns="audio",
+        batched=True,
     )
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn_weighted)
 
@@ -60,7 +67,6 @@ def _evaluate(model, loader: DataLoader, device: torch.device) -> dict:
     uar = recall_score(actual, predicted, average="macro", labels=ALL_LABELS, zero_division=0)
     war = recall_score(actual, predicted, average="weighted", labels=ALL_LABELS, zero_division=0)
     return {"uar": uar, "war": war, "actual": actual, "predicted": predicted}
-
 
 class LOTOFineTuner:
     """Runs leave-one-teacher-out classroom fine-tuning for one experiment configuration.
@@ -90,6 +96,7 @@ class LOTOFineTuner:
         lr: float | None,
         batch_size: int,
         save_model_dir: str | Path | None = None,
+        feature_extractor: Wav2Vec2FeatureExtractor | None = None,
     ) -> dict:
         """Fine-tune and evaluate one LOTO fold.
 
@@ -111,12 +118,11 @@ class LOTOFineTuner:
             If set, saves the fine-tuned checkpoint here.
         """
         cc = self.cfg.classroom
-        feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(self.cfg.mtkd.model_ckpt)
         logger.info("Fold (held out): %s  train=%d  test=%d", fold_name, len(train_df), len(test_df))
         logger.info("Before: %s", train_df.groupby("gt_label").size().to_dict())
 
-        audio_root = resolve(self.cfg.paths.chunk_audio_dir)
-        annotation_root = resolve(self.cfg.paths.annotation_root)
+        audio_root = resolve(cc.audio_root)
+        annotation_root = resolve(cc.csv_root)
 
         if not audio_root.exists():
             raise FileNotFoundError(f"Chunk audio directory not found: {audio_root}")
@@ -124,31 +130,29 @@ class LOTOFineTuner:
         if not annotation_root.exists():
             raise FileNotFoundError(f"Annotation directory not found: {annotation_root}")
 
-        # ── optional FESC contamination, TRAIN split only ────────────────
+        # FESC contamination, TRAIN split only (RIR is not yet implemented)
         if augment_fesc:
             noise_pool = build_noise_pool_for_fold(
                 annotation_root, audio_root, train_df,
                 extra_video_ids=tuple(cc.fesc.noise_extra_videos),
             )
-            snr_stats = estimate_snr_stats(train_df, noise_pool["dynamic"] + noise_pool["mic"], seed=self.cfg.seed)
-            fesc_df = fesc_pool_df(self.cfg, classes=tuple(cc.fesc.augment_classes))
+
+            snr_stats = estimate_snr_stats(train_df, noise_pool["dynamic"] + noise_pool["mic"], seed=cc.seed)
+            fesc_df = fesc_pool_df(self.cfg, classes=tuple(cc.augment_classes))
             real_counts = train_df["gt_label"].value_counts().to_dict()
             aug_df = contaminate_fesc(
                 fesc_df, noise_pool, snr_stats,
-                output_dir=Path(self.cfg.paths.fesc_contaminated_dir) / str(fold_name).replace("+", "_"),
-                classes=tuple(cc.fesc.augment_classes), cap_multiplier=cc.fesc.augment_cap_multiplier,
-                real_class_counts=real_counts, n_noise_sources=tuple(cc.fesc.noise_n_sources),
-                snr_std_db=cc.fesc.snr_std_db, snr_clip_min_db=cc.fesc.snr_clip_min_db, snr_clip_max_db=cc.fesc.snr_clip_max_db,
-                seed=self.cfg.seed,
+                output_dir=Path(cc.fesc_output_dir) / str(fold_name).replace("+", "_"),
+                classes=tuple(cc.augment_classes), cap_multiplier=cc.augment_cap_multiplier,
+                real_class_counts=real_counts, n_noise_sources=tuple(cc.noise_n_sources), seed=cc.seed,
             )
             train_df = pd.concat([train_df, aug_df], ignore_index=True)
             logger.info("After: %s", train_df.groupby("gt_label").size().to_dict())
 
-        # ── optional internal val split (early stopping only, never test) ─
-        fit_df, val_df = internal_val_split(train_df, val_frac=cc.internal_val_frac, seed=self.cfg.seed)
+        fit_df, val_df = internal_val_split(train_df, val_frac=cc.internal_val_frac, seed=cc.seed)
 
-        # ── weighting: attach BEFORE dataset construction so it survives shuffling ─
-        class_weights = compute_class_weights(fit_df, clip_max=cc.class_weight_clip_max) if use_class_weight else None
+        # weighting: attached BEFORE dataset construction so it survives shuffling
+        class_weights = compute_class_weights(fit_df) if use_class_weight else None
         if class_weights is not None:
             fit_df = attach_loss_weight_column(
                 fit_df, use_class_weight, use_confidence_weight, class_weights,
@@ -161,22 +165,22 @@ class LOTOFineTuner:
         else:
             logger.info("No class weighting.")
 
-        train_loader = _make_loader(fit_df, feature_extractor, self.cfg.mtkd.hyperparams.max_duration_sec, batch_size, shuffle=True)
-        val_loader = _make_loader(val_df, feature_extractor, self.cfg.mtkd.hyperparams.max_duration_sec, batch_size) if val_df is not None else None
-        test_loader = _make_loader(test_df, feature_extractor, self.cfg.mtkd.hyperparams.max_duration_sec, batch_size)
+        train_loader = _make_loader(fit_df, feature_extractor, cc.max_duration_sec, batch_size, shuffle=True)
+        val_loader = _make_loader(val_df, feature_extractor, cc.max_duration_sec, batch_size) if val_df is not None else None
+        test_loader = _make_loader(test_df, feature_extractor, cc.max_duration_sec, batch_size)
 
-        # ── baseline (no fine-tuning) on this fold's held-out teacher ────
+        # baseline (no fine-tuning) on this fold's held-out teacher
         model, epoch = load_model(self.cfg, base_checkpoint, self.device)
         baseline_metrics = _evaluate(model, test_loader, self.device)
         logger.info("[baseline ckpt epoch %s] UAR=%.4f WAR=%.4f", epoch, baseline_metrics["uar"], baseline_metrics["war"])
         logger.info("Baseline confusion matrix:\n%s", confusion_matrix(baseline_metrics["actual"], baseline_metrics["predicted"], labels=ALL_LABELS))
 
-        # ── fine-tune ────────────────────────────────────────────────────
+        # fine-tune
         freeze_for_variant(model, variant)
         default_lr = 2e-6 if variant == "full" else 1e-4
         lr = lr or default_lr
         optimizer = torch.optim.AdamW(
-            [p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=self.cfg.mtkd.hyperparams.weight_decay
+            [p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=cc.weight_decay
         )
 
         best_val_uar, best_state = -1.0, None
@@ -247,8 +251,10 @@ class LOTOFineTuner:
         batch_size = batch_size if batch_size is not None else cc.get("batch_size", 8)
         lr = lr if lr is not None else cc.get("lr", 2e-5)
 
-        audio_root = resolve(self.cfg.paths.chunk_audio_dir)
-        annotation_root = resolve(self.cfg.paths.annotation_root)
+        feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(cc.model_ckpt)
+
+        audio_root = resolve(cc.audio_root)
+        annotation_root = resolve(cc.csv_root)
 
         if not audio_root.exists():
             raise FileNotFoundError(f"Chunk audio directory not found: {audio_root}")
@@ -266,12 +272,13 @@ class LOTOFineTuner:
             results.append(
                 self.run_fold(
                     fold_name, held_out, train_df, test_df, base_checkpoint, variant,
-                    use_class_weight, use_confidence_weight, augment_fesc, epochs, lr, batch_size, save_model_dir,
+                    use_class_weight, use_confidence_weight, augment_fesc, epochs, lr, 
+                    batch_size, save_model_dir, feature_extractor=feature_extractor,
                 )
             )
 
         tag = f"{variant}_cw{int(use_class_weight)}_conf{int(use_confidence_weight)}_aug{int(augment_fesc)}"
-        output_dir = ensure_dir(Path(self.cfg.paths.generated_root) / "classroom_finetune")
+        output_dir = ensure_dir(Path(cc.output_dir))
         slim_results = [{k: v for k, v in r.items() if not k.startswith("finetuned_a") and not k.startswith("finetuned_p")} for r in results]
         with open(output_dir / f"results_{tag}.json", "w") as f:
             json.dump(slim_results, f, indent=2)
@@ -374,13 +381,6 @@ class LOTOFineTuner:
             **stats,
         }
 
-    def run_config(self, config_name: str, base_checkpoint: str | Path, variant: str, **kwargs) -> dict:
-        """Run one of the named experiment configs from `conf/classroom/classroom.yaml` (A-F, report Table 16)."""
-        config = self.cfg.classroom.configs[config_name]
-        return self.run_all_folds(
-            base_checkpoint, variant, config.use_class_weight, config.use_confidence_weight, config.augment_fesc, **kwargs
-        )
-
 
 def finetune_classroom_cli(cfg: DictConfig) -> int:
     """`tea finetune-classroom-loto` entry point.
@@ -390,24 +390,25 @@ def finetune_classroom_cli(cfg: DictConfig) -> int:
     configuration, or set `classroom.run.use_class_weight` /
     `use_confidence_weight` / `augment_fesc` individually.
     """
-    run_cfg = cfg.classroom.get("run", {})
-    base_checkpoint = run_cfg.get("base_checkpoint")
-    variant = run_cfg.get("variant")
+    cc = cfg.get("classroom", {})
+    if not cc:
+        logger.error("Missing classroom config (see conf/classroom/classroom.yaml)")
+        return 1
+    
+    base_checkpoint = cc.get("base_checkpoint")
+    variant = cc.get("variant")
     if not base_checkpoint or not variant:
         logger.error("Set classroom.run.base_checkpoint and classroom.run.variant (full|head_only)")
         return 2
 
     tuner = LOTOFineTuner(cfg)
-    save_model_dir = run_cfg.get("save_model_dir") or resolve(cfg.paths.classroom_finetune_dir)
+    save_model_dir = cc.get("save_model_dir")
 
-    if run_cfg.get("config"):
-        tuner.run_config(run_cfg.config, base_checkpoint, variant, save_model_dir=save_model_dir)
-    else:
-        tuner.run_all_folds(
-            base_checkpoint, variant,
-            use_class_weight=run_cfg.get("use_class_weight", False),
-            use_confidence_weight=run_cfg.get("use_confidence_weight", False),
-            augment_fesc=run_cfg.get("augment_fesc", False),
-            save_model_dir=save_model_dir,
-        )
+    tuner.run_all_folds(
+        base_checkpoint, variant,
+        use_class_weight=cc.get("use_class_weight", False),
+        use_confidence_weight=cc.get("use_confidence_weight", False),
+        augment_fesc=cc.get("augment_fesc", False),
+        save_model_dir=save_model_dir,
+    )
     return 0
