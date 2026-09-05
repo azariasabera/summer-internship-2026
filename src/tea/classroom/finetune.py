@@ -183,6 +183,7 @@ class LOTOFineTuner:
         for epoch_i in range(1, epochs + 1):
             model.train()
             running = 0.0
+            pbar = tqdm(train_loader, desc=f"Epoch {epoch_i}/{cc.epochs}", leave=False)
             for batch in train_loader:
                 inputs, labels, weights = batch["input_values"].to(self.device), batch["label"].to(self.device), batch["loss_weight"].to(self.device)
                 optimizer.zero_grad()
