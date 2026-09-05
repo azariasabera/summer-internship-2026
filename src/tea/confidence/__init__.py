@@ -66,7 +66,7 @@ def confidence_cli(cfg) -> int:
 
     logger.info("Master table shape: %s", df.shape)
     logger.info("Master table columns: %s", df.columns.tolist())
-    logger.info("Sample rows:\n%s", df.head(5).to_string())
+    logger.info("Sample rows:\n%s", df.head(5).to_string(index=False))
 
     mtkd_prob_cols = [f"mtkd_{c}" for c in mtkd_classes]
     text_fi_cols = [f"text_fi_{c}" for c in sentiment_classes]
