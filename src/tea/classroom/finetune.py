@@ -178,7 +178,7 @@ class LOTOFineTuner:
         optimizer = torch.optim.AdamW(
             [p for p in model.parameters() if p.requires_grad], lr=lr, weight_decay=cc.weight_decay
         )
-
+        logger.info(">>> USING lr=%.2e  variant=%s", lr, variant)
         best_val_uar, best_state = -1.0, None
         for epoch_i in range(1, epochs + 1):
             model.train()
@@ -245,7 +245,7 @@ class LOTOFineTuner:
         set_seed(self.cfg.get("seed", 42))
         epochs = epochs if epochs is not None else cc.get("epochs", 5)
         batch_size = batch_size if batch_size is not None else cc.get("batch_size", 8)
-        default_lr = 2e-5 if variant == "full" else 1e-4
+        default_lr = 2e-6 if variant == "full" else 1e-4
         lr = lr or default_lr
 
         feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(cc.model_ckpt)
