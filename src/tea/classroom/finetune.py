@@ -31,6 +31,7 @@ from tea.classroom.utils import ( # these utils are also found in `tea.mtkd.util
     preprocess_function,
     set_seed,
     weighted_ce,
+    CONFIDENCE_DISCOUNT,
 )
 
 from tea.utils.constants import CLASS_ORDER
@@ -154,11 +155,8 @@ class LOTOFineTuner:
         # weighting: attached BEFORE dataset construction so it survives shuffling
         class_weights = compute_class_weights(fit_df) if use_class_weight else None
         if class_weights is not None:
-            fit_df = attach_loss_weight_column(
-                fit_df, use_class_weight, use_confidence_weight, class_weights,
-                confidence_discount_map=dict(cc.confidence_discount), augmented_discount=cc.augmented_discount,
-            )
-            confidence_discount_map = {int(k): v for k, v in cc.confidence_discount.items()}
+            fit_df = attach_loss_weight_column(fit_df, use_class_weight, use_confidence_weight, class_weights)
+            confidence_discount_map = {int(k): v for k, v in CONFIDENCE_DISCOUNT.items()}
             logger.info("Class weights: %s", {CLASS_ORDER[i]: round(float(w), 4) for i, w in enumerate(class_weights)})
             logger.info("confidence_discount_map=%r (key types: %s)", confidence_discount_map, {type(k) for k in confidence_discount_map})
             logger.info("mean loss_weight by confidence: %s", fit_df.groupby("confidence")["loss_weight"].mean().to_dict())
