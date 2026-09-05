@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from torch.nn.utils.rnn import pad_sequence
 from transformers import AutoModelForAudioClassification
 
-from . import config
+from tea.utils.constants import CLASS_ORDER, LABEL2ID, ID2LABEL
 
 CONFIDENCE_DISCOUNT = {1: 0.7, 2: 0.85, 3: 1.0}
 AUGMENTED_DISCOUNT = 0.8
@@ -92,20 +92,20 @@ def freeze_for_variant(model, variant: str):
         f"(should only be projector/classifier — verify using check.py)"
     )
 
-def build_student(device):
+def build_student(device, cfg: DictConfig):
     model = AutoModelForAudioClassification.from_pretrained(
-        config.MODEL_CKPT,
-        num_labels=len(config.CANONICAL_ORDER),
-        label2id=config.LABEL2ID,
-        id2label=config.ID2LABEL,
+        cfg.classroom.model_ckpt,
+        num_labels=len(CLASS_ORDER),
+        label2id=LABEL2ID,
+        id2label=ID2LABEL,
     )
     model.freeze_feature_encoder()
     model.to(device)
     return model
 
 
-def load_model(checkpoint_path, device):
-    model = build_student(device)
+def load_model(checkpoint_path, device, cfg: DictConfig):
+    model = build_student(device, cfg)
     checkpoint = torch.load(checkpoint_path, map_location=device)
     model.load_state_dict(checkpoint["model_state_dict"])
     model.to(device)

@@ -170,7 +170,7 @@ class LOTOFineTuner:
         test_loader = _make_loader(test_df, feature_extractor, cc.max_duration_sec, batch_size)
 
         # baseline (no fine-tuning) on this fold's held-out teacher
-        model, epoch = load_model(self.cfg, base_checkpoint, self.device)
+        model, epoch = load_model(checkpoint_path=base_checkpoint, device=self.device, cfg=self.cfg)
         baseline_metrics = _evaluate(model, test_loader, self.device)
         logger.info("[baseline ckpt epoch %s] UAR=%.4f WAR=%.4f", epoch, baseline_metrics["uar"], baseline_metrics["war"])
         logger.info("Baseline confusion matrix:\n%s", confusion_matrix(baseline_metrics["actual"], baseline_metrics["predicted"], labels=ALL_LABELS))
