@@ -5,30 +5,22 @@ classroom background noise before injecting them into a fold's training
 set, so the added minority-class data sounds closer to the far-field
 classroom domain instead of raw close-talk acted audio.
 
-Ported from `mtkd_code.txt`'s `fesc_contamination.py`. Noise-pool
-extraction from annotated CSVs (`extract_noise_pool`) now delegates to
-`tea.noise.extract_noise_pool` rather than redefining it -- this module
-keeps only what's genuinely LOTO-fold-specific: composing a fold's noise
-pool (training teachers' non-speech + always-included noise-only videos),
-estimating this fold's empirical SNR gap, and the composite-noise mixing
-that injects it into FESC audio.
-
 RIR (room impulse response) augmentation is available as an OPTIONAL.
 """
 
-from __future__ import annotations
-
 import json
-import math
+import os
 import random
+
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from omegaconf import DictConfig
 
 import librosa
 import numpy as np
 import pandas as pd
 import soundfile as sf
-from omegaconf import DictConfig
 from tqdm.auto import tqdm
 
 from tea.classroom.data import read_video_csv_raw
@@ -48,7 +40,8 @@ def _rms_db(wave: np.ndarray) -> float:
     return 20 * np.log10(rms + EPS)
 
 
-def _extract_noise_pool(csv_root: str | Path, audio_root: str | Path, video_ids: list[str]) -> list[str]:
+def extract_noise_pool(csv_root: str | Path, audio_root: str | Path, video_ids: list[str], 
+                        chunk_col: str = "name", label_col: str = "gt_label") -> list[str]:
     """Non-speech (NaN `gt_label`) chunk paths for a set of videos.
 
     This is the fold-aware. It needs both `csv_root` and
@@ -60,11 +53,12 @@ def _extract_noise_pool(csv_root: str | Path, audio_root: str | Path, video_ids:
     """
     paths: list[str] = []
     for video_id in sorted(set(video_ids)):
-        df = read_video_csv_raw(csv_root, audio_root, video_id)
+        df = read_video_csv_raw(csv_root, audio_root, video_id, chunk_col, label_col)
         if df is None:
             logger.info("%s: no csv found, skipping for noise pool", video_id)
             continue
-        noise_rows = df.loc[df["gt_label"].isna()]
+        noise_rows = df.loc[df[label_col].isna()]
+        logger.info("%s: %d non-speech chunks for noise pool", video_id, len(noise_rows))
         if len(noise_rows) == 0:
             continue
         paths.extend(noise_rows["audio_path"].tolist())
@@ -74,9 +68,9 @@ def _extract_noise_pool(csv_root: str | Path, audio_root: str | Path, video_ids:
     return paths
 
 
-def build_noise_pool_for_fold(
-    csv_root: str | Path, audio_root: str | Path, train_df: pd.DataFrame, extra_video_ids: tuple[str, ...] = ("1B3261",)
-) -> dict[str, list[str]]:
+def build_noise_pool_for_fold(csv_root: str | Path, audio_root: str | Path, train_df: pd.DataFrame, 
+                              extra_video_ids: tuple[str, ...] = ("1B3261",), chunk_col: str = "name", 
+                              label_col: str = "gt_label") -> dict[str, list[str]]:
     """Compose this fold's noise source: training videos' non-speech chunks, plus always-included noise-only videos.
 
     The held-out teacher's videos are never in `train_df` to begin with,
@@ -100,12 +94,13 @@ def build_noise_pool_for_fold(
         own non-speech chunks, mic = the fixed extra noise-only videos.
     """
     train_video_ids = set(train_df["video_id"].unique())
+    video_ids = train_video_ids | set(extra_video_ids)
     logger.info(
-        "Noise pool videos: %d training + %d noise-only extras", len(train_video_ids), len(set(extra_video_ids))
+        "Noise pool videos: %d training + %d noise-only extras -> %d total", len(train_video_ids), len(set(extra_video_ids), len(video_ids))
     )
+    dynamic_noise_paths = extract_noise_pool(csv_root, audio_root, list(train_video_ids), chunk_col, label_col)
+    mic_noise_paths = extract_noise_pool(csv_root, audio_root, list(extra_video_ids), chunk_col, label_col)
 
-    dynamic_noise_paths = _extract_noise_pool(csv_root, audio_root, list(train_video_ids))
-    mic_noise_paths = _extract_noise_pool(csv_root, audio_root, list(extra_video_ids))
     logger.info("Dynamic noise: %d chunks | Mic noise: %d chunks", len(dynamic_noise_paths), len(mic_noise_paths))
 
     return {"dynamic": dynamic_noise_paths, "mic": mic_noise_paths}
@@ -148,6 +143,7 @@ def estimate_snr_stats(train_df: pd.DataFrame, noise_pool_paths: list[str], n_sa
 
 
 def _load_and_trim(path: str, target_len: int) -> np.ndarray:
+    """Load a waveform and trim/pad to `target_len` samples, randomly cropping if longer."""
     wave, _ = librosa.load(path, sr=SAMPLE_RATE)
     if len(wave) < target_len:
         wave = np.tile(wave, int(np.ceil(target_len / len(wave))))
@@ -160,20 +156,18 @@ def _composite_noise(noise_pool_paths: dict[str, list[str]], target_len: int, n_
 
     Mic-noise: from 1B3261, where there is no other sound. Environmental-noise: the non-speech parts from the rest of the videos.
     """
-    dynamic_pool, mic_pool = noise_pool_paths["dynamic"], noise_pool_paths["mic"]
+    dynamic_pool = noise_pool_paths["dynamic"]
+    mic_pool = noise_pool_paths["mic"]
     composite = np.zeros(target_len, dtype=np.float64)
-
     chosen = [random.choice(mic_pool)]
     k = random.randint(*n_sources)
     chosen += random.sample(dynamic_pool, min(k, len(dynamic_pool)))
-
     for p in chosen:
         seg = _load_and_trim(p, target_len).astype(np.float64)
-        rms = np.sqrt(np.mean(seg**2) + EPS)
+        rms = np.sqrt(np.mean(seg ** 2) + EPS)
         seg = seg / (rms + EPS)
         gain = random.uniform(0.2, 0.5) if p in mic_pool else random.uniform(0.5, 1.0)
         composite += seg * gain
-
     return composite
 
 
@@ -183,12 +177,10 @@ def _mix_at_snr(speech: np.ndarray, noise: np.ndarray, snr_db: float) -> np.ndar
         if len(noise) < len(speech):
             noise = np.tile(noise, int(np.ceil(len(speech) / len(noise))))
         noise = noise[: len(speech)]
-
     rms_speech = np.sqrt(np.mean(speech.astype(np.float64) ** 2) + EPS)
     rms_noise = np.sqrt(np.mean(noise.astype(np.float64) ** 2) + EPS)
     target_rms_noise = rms_speech / (10 ** (snr_db / 20))
     noise_scaled = noise * (target_rms_noise / (rms_noise + EPS))
-
     mixed = speech + noise_scaled
     peak = np.max(np.abs(mixed))
     if peak > 1.0:
@@ -212,11 +204,15 @@ def fesc_pool_df(cfg: DictConfig, classes: tuple[str, ...] = ("sadness", "anger"
         Which emotion classes to keep from the pool.
     """
     label_map = {"1": "neutral", "2": "sadness", "3": "happiness", "4": "anger"}
-    splits_root = Path(cfg.paths.splits_root)
-    fesc_new_prefix = str(Path(cfg.paths.datasets_root) / "FESC") + "/"
+    cc = cfg.get("classroom", None)
+    if cc is None:
+        raise ValueError("cfg must contain a 'classroom' section with paths and fesc_session_map")
+    
+    splits_root = Path(cc.splits_dir)
+    fesc_new_prefix = str(Path(cc.fesc_new_prefix))
 
     frames = []
-    for session, folder in cfg.teachers.fesc_session_map.items():
+    for session, folder in cc.fesc_session_map.items():
         for split in ("train", "test", "dev"):
             path = splits_root / "Finnish-emotion-spilits" / folder / f"{split}.json"
             if not path.exists():
@@ -227,7 +223,8 @@ def fesc_pool_df(cfg: DictConfig, classes: tuple[str, ...] = ("sadness", "anger"
             df = pd.DataFrame.from_dict(raw, orient="index").reset_index()
             df = df.rename(columns={"index": "file_id", "label": "emo"})
             df = df.loc[df["emo"].astype(str) != "5"].reset_index(drop=True)
-            df["audio_path"] = df["file_path"].str.replace(cfg.teachers.fesc_old_prefix, fesc_new_prefix, regex=False)
+            df["audio_path"] = df["file_path"].str.replace(cc.fesc_old_prefix, fesc_new_prefix, regex=False)
+
             df["gt_label"] = df["emo"].astype(str).map(label_map)
             df["label"] = df["gt_label"].map(LABEL2ID).astype(int)
             df["session"] = session
@@ -237,6 +234,7 @@ def fesc_pool_df(cfg: DictConfig, classes: tuple[str, ...] = ("sadness", "anger"
     pool = pool.loc[pool["gt_label"].isin(classes)].reset_index(drop=True)
     logger.info("FESC pool: %d utterances across classes %s", len(pool), dict(pool["gt_label"].value_counts()))
     return pool
+
 
 def compute_augmentation_sizes(
     class_counts: dict,
@@ -276,23 +274,23 @@ def compute_augmentation_sizes(
         for cls, count in class_counts.items()
     }
 
+
 def contaminate_fesc(
     fesc_df: pd.DataFrame,
     noise_pool_paths: dict[str, list[str]],
     snr_stats: dict,
     output_dir: str | Path,
     classes: tuple[str, ...] = ("sadness", "anger"),
+
     # --- sizing ---
     augment_strategy: str = "cap",          # "cap" | "adaptive"
     cap_multiplier: float = 2.5,
     adaptive_alpha: float = 5.0,
     real_class_counts: dict | None = None,
-    # --- noise / SNR ---
+
     n_noise_sources: tuple[int, int] = (2, 3),
-    snr_std_db: float = 5.0,
-    snr_clip_min_db: float = 10,
-    snr_clip_max_db: float = 30,
     seed: int = 42,
+
     # --- optional RIR ---
     rir: RIRAugmentor | None = None,
     rir_prob: float = 0.7,
@@ -327,13 +325,6 @@ def contaminate_fesc(
         `{"sadness": n, "anger": n, ...}` from this fold's real training
         data. Required for both strategies when class-aware sizing is desired;
         if `None`, the full FESC pool for each class is used.
-    n_noise_sources:
-        Min/max number of environmental (dynamic) noise clips composited
-        together per augmented sample. A mic-noise clip is always included.
-    snr_std_db, snr_clip_min_db, snr_clip_max_db:
-        Per-sample SNR is drawn from
-        `Normal(snr_stats["mean_snr_db"], snr_std_db)` and clipped to
-        `[snr_clip_min_db, snr_clip_max_db]`.
     seed:
         Random seed for sampling and SNR draws.
     rir:
@@ -349,8 +340,7 @@ def contaminate_fesc(
     Returns
     -------
     pd.DataFrame
-        Augmented samples ready to be concatenated onto the fold's training
-        dataframe.
+        Augmented samples ready to be concatenated onto the fold's training dataframe.
     """
     random.seed(seed)
     output_dir = Path(output_dir)
@@ -361,9 +351,7 @@ def contaminate_fesc(
     # Pre-compute adaptive sizes once (only used if strategy == "adaptive")
     adaptive_sizes = None
     if augment_strategy == "adaptive" and real_class_counts:
-        adaptive_sizes = compute_augmentation_sizes(
-            real_class_counts, alpha=adaptive_alpha
-        )
+        adaptive_sizes = compute_augmentation_sizes(real_class_counts, alpha=adaptive_alpha)
 
     for cls in classes:
         cls_id = LABEL2ID[cls]
@@ -372,24 +360,14 @@ def contaminate_fesc(
         # sizing the augmentation
         if augment_strategy == "adaptive":
             n_samples = adaptive_sizes.get(cls, 0) if adaptive_sizes is not None else len(pool)
-            chosen = pool.sample(
-                n=n_samples,
-                replace=(n_samples > len(pool)),
-                random_state=seed,
-            )
+            chosen = pool.sample(n=n_samples, replace=(n_samples > len(pool)), random_state=seed)
             logger.info("Contaminating %d/%d FESC '%s' utterances (adaptive)", len(chosen), len(pool), cls)
         else: # augment_strategy == "cap"
             cap = len(pool)
             if real_class_counts:
-                cap = min(
-                    cap,
-                    int(round(cap_multiplier * max(real_class_counts.get(cls, 1), 1))),
-                )
+                cap = min(cap, int(round(cap_multiplier * max(real_class_counts.get(cls, 1), 1))))
             chosen = pool.sample(n=cap, random_state=seed) if cap < len(pool) else pool
-            logger.info(
-                "Contaminating %d/%d FESC '%s' utterances (cap=%d)",
-                len(chosen), len(pool), cls, cap,
-            )
+            logger.info("Contaminating %d/%d FESC '%s' utterances (cap=%d)", len(chosen), len(pool), cls, cap)
 
         for i, row in enumerate(chosen.itertuples()):
             speech, _ = librosa.load(row.audio_path, sr=SAMPLE_RATE)
@@ -399,22 +377,13 @@ def contaminate_fesc(
                 rir_count += 1
 
             noise = _composite_noise(noise_pool_paths, len(speech), n_sources=n_noise_sources)
-            snr_db = float(
-                np.clip(
-                    # I intentionally used the configurable augmentation std (snr_std_db) rather than
-                    # snr_stats["std_snr_db"] for the SNR sampling.
-                    random.gauss(snr_stats["mean_snr_db"], snr_std_db),
-                    a_min=snr_clip_min_db,
-                    a_max=snr_clip_max_db,
-                )
-            )
+            snr_db = float(np.clip(random.gauss(snr_stats["mean_snr_db"], 5.0), a_min=10, a_max=30))
             mixed = _mix_at_snr(speech, noise, snr_db)
-
             out_path = output_dir / f"fesc_aug_{cls}_{i}.wav"
             sf.write(out_path, mixed, SAMPLE_RATE)
 
             rows.append({
-                "audio_path": str(out_path),
+                "audio_path": out_path,
                 "label": int(cls_id),
                 "gt_label": cls,
                 "video_id": "__AUG__",
