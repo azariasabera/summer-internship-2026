@@ -31,11 +31,11 @@ def denoise(cfg: DictConfig) -> int:
     if method not in ["deepfilter", "spectral"]:
         raise ValueError(f"Unknown noise.method='{method}'")
 
-    chunk_meta_dir = resolve(cfg.paths.chunk_meta_dir) # contains per-video json meta data
+    json_annotations = resolve(cfg.noise.json_annotations) # contains per-video json meta data
 
     out_dir = ensure_dir(resolve(cfg.noise.get(method).get("save_dir")))
 
-    json_files = sorted(chunk_meta_dir.glob("*.json"))
+    json_files = sorted(json_annotations.glob("*.json"))
     logger.info("Denoising %d file(s) with method=%s -> %s", len(json_files), method, out_dir)
 
     if method == "deepfilter":
@@ -91,10 +91,10 @@ def denoise(cfg: DictConfig) -> int:
         import numpy as np
 
         videos_df = load_annotation_csvs(
-            annotation_root=cfg.paths.annotation_root,
+            annotation_root=cfg.noise.csv_annotations,
             exclude=None,
             add_audio_path=True,
-            json_dir=cfg.paths.chunk_meta_dir,
+            json_dir=cfg.noise.json_annotations,
         )
         subtractor = SpectralSubtractor(
             n_fft=int(cfg.noise.spectral.get("n_fft", 1024)),
@@ -159,9 +159,8 @@ def denoise(cfg: DictConfig) -> int:
 def extract_noise(cfg: DictConfig) -> int:
     """`tea extract-noise`: collect non-speech chunk metadata.
 
-    Writes the resulting noise chunk metadata to `paths.noise.noise_extract_save_dir/noise_pool.json`.
-
-    If `noise.extraction.save_audio` is enabled, also extracts and saves full noise extract WAV file.
+    Writes the resulting noise chunk metadata to `cfg.noise.extraction.save_dir/noise_pool.json`. 
+    If `cfg.noise.extraction.save_audio` is enabled, also extracts and saves full noise extract WAV file.
     """
     import json
 
@@ -172,10 +171,10 @@ def extract_noise(cfg: DictConfig) -> int:
     from tea.utils.io import load_annotation_csvs
 
     df = load_annotation_csvs(
-        annotation_root=cfg.paths.annotation_root,
+        annotation_root=cfg.noise.csv_annotations,
         exclude=None,
         add_audio_path=True,
-        json_dir=cfg.paths.chunk_meta_dir,
+        json_dir=cfg.noise.json_annotations,
     )
 
     noise_rows = df.loc[df["gt_label"].isna()]
@@ -185,7 +184,7 @@ def extract_noise(cfg: DictConfig) -> int:
 
     pool = noise_rows[["audio_path", "start", "end"]].to_dict(orient="records")
 
-    out_dir = ensure_dir(resolve(cfg.paths.noise.noise_extract_save_dir))
+    out_dir = ensure_dir(resolve(cfg.noise.extraction.save_dir))
     out_path = out_dir / "noise_pool.json"
 
     save_audio = cfg.noise.extraction.get("save_audio", False)

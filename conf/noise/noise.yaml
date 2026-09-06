@@ -3,6 +3,9 @@
 # Denoising method
 method: deepfilter # "deepfilter" | "spectral"
 
+json_annotations: ${paths.chunk_meta_dir} # contains per-video json meta data
+csv_annotations: ${paths.annotation_root} # contains per-video csv meta data
+
 deepfilter:
   atten_lim_db: 15          # 15 = milder, 0 = stronger attenuation
   long_audio_threshold_sec: 600
@@ -41,3 +44,4 @@ rir:
 extraction:
   save_audio: false # whether noise extraction only saves the meta-data or the audio too.
   sample_rate: 16000
+  save_dir: ${paths.noise.noise_extract_save_dir}
