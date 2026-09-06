@@ -34,10 +34,8 @@ MODULE = str
 CLI_FUNCTION = str
 DESCRIPTION = str
 
-# ---------------------------------------------------------------------------
-# Pipeline stages (order = dependency order for everyday reproduction)
-# ---------------------------------------------------------------------------
 
+# Pipeline stages 
 _STAGE1: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
     ("chunk", "tea.vad", "chunk", "VAD segmentation -> generated/chunks + annotation CSVs"),
     ("merge-annotations", "tea.utils.io", "merge_annotations", "Copy gt_label / confidence / overlap from prepared CSVs into generated annotations"),
@@ -48,68 +46,44 @@ _STAGE1: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
 ]
 
 _STAGE2: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
-    ("infer-mtkd", "tea.mtkd.infer", "infer_mtkd_cli", "MTKD student inference -> pred_label / scores on CSVs"),
-    (
-        "extract-embeddings",
-        "tea.mtkd.embeddings",
-        "extract_embeddings_cli",
-        "Pooled WavLM embeddings for probes (optional)",
-    ),
-]
-
-_STAGE3: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
-    (
-        "evaluate-classroom",
-        "tea.analysis",
-        "evaluate_classroom_cli",
-        "WAR / UAR / confusion + child-speech / confidence breakdowns",
-    ),
-    ("temporal", "tea.analysis", "temporal_cli", "Temporal consistency scores + smoothed emotion arcs"),
-    ("noise-analysis", "tea.analysis", "noise_analysis_cli", "Noise filtering / augmentation distribution tables"),
-    (
-        "acoustic-by-emotion",
-        "tea.analysis.acoustic_by_emotion",
-        "acoustic_by_emotion_cli",
-        "Acoustic feature box-plots by predicted emotion",
-    ),
-    ("confidence", "tea.confidence", "confidence_cli", "Binary / TCP / instance-temperature reliability"),
-    ("probe-child-speech", "tea.probes.child_speech", "probe_child_speech_cli", "Child-speech logistic probe on embeddings"),
-    (
-        "probe-feature-fusion",
-        "tea.probes.feature_fusion",
-        "probe_feature_fusion_cli",
-        "Handcrafted + embedding feature-fusion tables",
-    ),
-    ("emotion-arc", "tea.analysis", "emotion_arc_per_video", "Emotion arc plots per video (smoothed)"),
-]
-
-_STAGE4: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
     ("train-teacher", "tea.teachers", "train_teacher", "Monolingual teacher fine-tune (Triton)"),
     ("train-mtkd", "tea.mtkd.train", "train_mtkd_cli", "Multilingual MTKD student train (Triton)"),
-    (
-        "finetune-classroom",
-        "tea.classroom.finetune",
-        "finetune_classroom_cli",
-        "LOTO classroom fine-tune configs A-F (Triton)",
-    ),
+    ("finetune-classroom", "tea.classroom.finetune", "finetune_classroom_cli", "LOTO classroom fine-tune (Triton)"),
 ]
 
-_STAGE5: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
-    (
-        "evaluate-mtkd",
-        "tea.mtkd.evaluate",
-        "evaluate_mtkd_cli",
-        "Evaluate a student checkpoint on held-out benchmark splits",
-    ),
+
+_STAGE3: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
+    ("evaluate-mtkd", "tea.mtkd.evaluate", "evaluate_mtkd_cli", "Evaluate a student checkpoint on held-out benchmark splits"),
     ("calibrate", "tea.mtkd.calibrate", "calibrate_cli", "Temperature / bias calibration of a student checkpoint"),
 ]
 
+_STAGE4: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
+    ("infer-mtkd", "tea.mtkd.infer", "infer_mtkd_cli", "MTKD student inference -> pred_label / scores on CSVs"),
+    ("extract-embeddings", "tea.mtkd.embeddings", "extract_embeddings_cli", "Pooled WavLM embeddings for probes (optional)"),
+]
+
+_STAGE5: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
+    ("evaluate-classroom", "tea.analysis", "evaluate_classroom_cli", "WAR / UAR / confusion + child-speech / confidence breakdowns"),
+    ("temporal", "tea.analysis", "temporal_cli", "Temporal consistency scores + smoothed emotion arcs"),
+    ("noise-analysis", "tea.analysis", "noise_analysis_cli", "Noise filtering / augmentation distribution tables"),
+    ("acoustic-by-emotion", "tea.analysis.acoustic_by_emotion", "acoustic_by_emotion_cli", "Acoustic feature box-plots by predicted emotion"),
+    ("emotion-arc", "tea.analysis", "emotion_arc_per_video", "Emotion arc plots per video (smoothed)"),
+]
+
+_STAGE6: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
+    ("confidence", "tea.confidence", "confidence_cli", "Binary / TCP / instance-temperature reliability"),
+    ("probe-child-speech", "tea.probes.child_speech", "probe_child_speech_cli", "Child-speech logistic probe on embeddings"),
+    ("probe-feature-fusion", "tea.probes.feature_fusion", "probe_feature_fusion_cli", "Handcrafted + embedding feature-fusion tables"),
+]
+
+
 _ALL_STAGES: Final[list[tuple[str, list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]]]] = [
     ("1. Data preparation", _STAGE1),
-    ("2. Inference (frozen checkpoints)", _STAGE2),
-    ("3. Analysis / probes / confidence", _STAGE3),
-    ("4. Training (Triton / GPU)", _STAGE4),
-    ("5. Checkpoint evaluation helpers", _STAGE5),
+    ("2. Training (Triton / GPU)", _STAGE2),
+    ("3. Checkpoint evaluation & calibration", _STAGE3),
+    ("4. Inference (frozen checkpoints)", _STAGE4),
+    ("5. Analysis / plots / tables", _STAGE5),
+    ("6. Probes / confidence estimation", _STAGE6),
 ]
 
 CLI_COMMANDS: Final[dict[COMMAND, tuple[MODULE, CLI_FUNCTION]]] = {
@@ -121,8 +95,10 @@ COMMAND_HELP: Final[dict[COMMAND, DESCRIPTION]] = {
 }
 
 def _epilog() -> str:
+    """Generate the epilog text for the CLI help message, listing all commands and their descriptions."""
     lines = [
-        "Pipeline order (run top -> bottom for full classroom reproduction):",
+        "Commands grouped by pipeline stage (top -> bottom reflects typical dependency order,",
+        "not a strict requirement -- see doc/pipeline.md for what each step actually needs):",
         "",
     ]
     for title, stage in _ALL_STAGES:
@@ -135,9 +111,10 @@ def _epilog() -> str:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the top-level argument parser for the `tea` CLI."""
     parser = argparse.ArgumentParser(
         prog="tea",
-        description="Teacher Emotion Analysis -- classroom SER pipeline",
+        description="Teacher Emotion Analysis: classroom SER pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent(_epilog()),
     )
