@@ -16,11 +16,34 @@ from transformers import Wav2Vec2FeatureExtractor
 from tea.mtkd import data as mtkd_data
 from tea.mtkd.model import load_student
 from tea.mtkd.utils import collate_fn, preprocess_function
+from tea.utils.paths import resolve
 from tea.utils.constants import CLASS_ORDER, ID2LABEL
 from tea.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
+def extract_checkpoint_info(checkpoint: str | Path) -> dict:
+    """Extracts `linguality`, `language`, and `session` from checkpoint.
+
+    Expected format: 
+        Parent/MTKD_{linguality}_{language}_S{session}.pth
+    """
+
+    ckpt = resolve(checkpoint).stem
+    infos = ckpt.split("_")
+
+    if len(infos) != 4 or infos[0] != "MTKD" or not infos[3].startswith("S"): 
+        raise ValueError( 
+            f"Invalid checkpoint filename: {resolve(ckpt).name}. " 
+            "Expected format: MTKD_<linguality>_<language>_S<session>.pth" 
+        )
+
+    return { 
+            "linguality": infos[1], 
+            "language": infos[2], 
+            "session": int(infos[3][1:]), 
+    }
 
 class Calibrator:
     """Fits and evaluates a single scalar temperature T for softmax(logits / T).
@@ -134,27 +157,24 @@ class Calibrator:
         print(f"UAR (Unweighted Average Recall):         {uar:.4f}")
 
     def run(
-        self, linguality: str, language: str, session: int, split: str = "dev", checkpoint: str | Path | None = None
-    ) -> float:
+        self, linguality: str, language: str, session: int, checkpoint: str | Path, split: str = "dev") -> float:
         """Fit and report temperature scaling for one checkpoint.
 
         Parameters
         ----------
         linguality, language, session:
             Which checkpoint/dataset to calibrate.
-        split:
+        checkpoint: 
+            Path to the checkpoint to calibrate. 
+        split: 
             Which split to FIT T on. Use `"dev"` -- never `"test"`.
-        checkpoint:
-            Override checkpoint path.
 
         Returns
         -------
         float
             The fitted temperature T.
         """
-        ckpt_path = checkpoint or (
-            Path(self.cfg.paths.student_ckpt_dir) / f"MTKD_{linguality}_{language}_S{session}.pth"
-        )
+        ckpt_path = resolve(checkpoint)
         model, epoch = load_student(self.cfg, ckpt_path, self.device)
         logger.info("Loaded checkpoint (epoch %s) from %s", epoch, ckpt_path)
 
@@ -204,9 +224,47 @@ def calibrate_cli(cfg: DictConfig) -> int:
     Requires `mtkd.linguality`, `mtkd.language`, `mtkd.session` overrides, e.g.:
     `tea calibrate mtkd.linguality=Multilingual mtkd.language=FI mtkd.session=8`
     """
-    if cfg.mtkd.linguality is None or cfg.mtkd.language is None or cfg.mtkd.session is None:
-        logger.error("Set mtkd.linguality / mtkd.language / mtkd.session")
+    linguality = cfg.mtkd.get("linguality")
+    language = cfg.mtkd.get("language")
+    session = cfg.mtkd.get("session")
+    calibrate_checkpoint = cfg.mtkd.get("calibrate_checkpoint")
+    use_default_calibrate_ckpt = cfg.mtkd.get("use_default_calibrate_ckpt", False)
+
+    # Checkpoint selection priority:
+    #   1. linguality + language + session
+    #   2. calibrate_checkpoint
+    #   3. default_student_checkpoint
+    ckpt_path = None
+
+    if linguality is not None and language is not None and session is not None:
+        # Highest priority: construct checkpoint path from MTKD config
+        ckpt_path = resolve(cfg.mtkd.checkpoint_save_dir) / f"MTKD_{linguality}_{language}_S{session}.pth"
+
+    elif calibrate_checkpoint is not None:
+        # Second priority: explicitly provided checkpoint
+        ckpt_path = resolve(calibrate_checkpoint)
+        info = extract_checkpoint_info(ckpt_path)
+        linguality, language, session = info["linguality"], info["language"], info["session"]
+
+    elif use_default_calibrate_ckpt:
+        # Lowest priority: configured default checkpoint
+        ckpt_path = resolve(cfg.mtkd.default_student_checkpoint)
+        info = extract_checkpoint_info(ckpt_path)
+        linguality, language, session = info["linguality"], info["language"], info["session"]
+
+    else:
+        logger.error(
+            "No calibration checkpoint specified. Set either "
+            "(mtkd.linguality, mtkd.language, mtkd.session), "
+            "mtkd.calibrate_checkpoint, or mtkd.use_default_calibrate_ckpt=true."
+        )
         return 2
 
-    Calibrator(cfg).run(cfg.mtkd.linguality, cfg.mtkd.language, cfg.mtkd.session)
+    if not ckpt_path.exists():
+        logger.error("Checkpoint not found: %s", ckpt_path)
+        return 1
+
+    logger.info("Using calibration checkpoint: %s", ckpt_path)
+
+    Calibrator(cfg).run(linguality, language, session, ckpt_path)
     return 0
