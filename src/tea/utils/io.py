@@ -391,8 +391,8 @@ def merge_asr_annotations(cfg: DictConfig) -> int:
 
     Matching is by the `name` column (chunk id).
     """
-    prepared_root = resolve(cfg.paths.prepared_annotation_root)
-    target_root = ensure_dir(resolve(cfg.paths.annotation_root))
+    prepared_root = resolve(cfg.asr.prepared_annotation_root)
+    target_root = ensure_dir(resolve(cfg.asr.annotation_csv_dir))
 
     if not prepared_root.is_dir():
         logger.error("Prepared annotation root does not exist: %s", prepared_root)

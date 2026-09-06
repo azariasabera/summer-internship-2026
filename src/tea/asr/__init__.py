@@ -25,11 +25,11 @@ logger = get_logger(__name__)
 def _resolve_audio_path(video_id: str, cfg: DictConfig, json_dir: Path | None = None) -> Path | None:
     """Locate the source waveform for a video.
 
-    json_dir here is paths.chunk_meta_dir where `tea chunk` saves the jsons for each file.
+    json_dir here is asr.annotation_json_dir where `tea chunk` saves the jsons for each file.
 
     Preference order:
-    1. ``audio_path`` stored inside the matching VAD JSON (if present).
-    2. ``cfg.paths.audio_root / f"{video_id}.wav"``.
+    1. `audio_path` stored inside the matching VAD JSON (if present).
+    2. `cfg.asr.audio_root / f"{video_id}.wav"`.
     """
     if json_dir is not None:
         json_path = Path(json_dir) / f"{video_id}.json"
@@ -41,18 +41,18 @@ def _resolve_audio_path(video_id: str, cfg: DictConfig, json_dir: Path | None = 
             if ap and Path(ap).exists():
                 return Path(ap)
 
-    candidate = Path(resolve(cfg.paths.audio_root)) / f"{video_id}.wav"
+    candidate = Path(resolve(cfg.asr.audio_root)) / f"{video_id}.wav"
     return candidate if candidate.exists() else None
 
 
 def transcribe_annotation_root(cfg: DictConfig) -> int:
-    """Run Whisper over every annotation CSV under ``annotation_root``.
+    """Run Whisper over every annotation CSV under `annotation_root`.
 
     For each CSV:
 
     * load the matching source audio
-    * slice every **speech** row by ``start``/``end`` (sample indices)
-    * write ``transcription`` and ``translation`` columns
+    * slice every **speech** row by `start`/`end` (sample indices)
+    * write `transcription` and `translation` columns
     * non-speech rows (and any row whose audio cannot be loaded) get empty strings
 
     Final column order:
@@ -63,17 +63,17 @@ def transcribe_annotation_root(cfg: DictConfig) -> int:
     ----------
     cfg:
         Resolved Hydra configuration. Expected keys:
-        ``paths.annotation_root``, ``paths.audio_root``,
-        optionally ``paths.chunk_meta_dir``, ``asr.model``, ``asr.language``,
-        ``asr.batch_size``.
+        `asr.annotation_csv_dir`, `asr.audio_root`,
+        optionally `ase.annotation_json_dir`, `asr.model`, `asr.language`,
+        `asr.batch_size`.
 
     Returns
     -------
     int
         Process exit status (0 on success).
     """
-    annotation_root = Path(resolve(cfg.paths.annotation_root))
-    chunk_meta_dir = Path(resolve(cfg.paths.chunk_meta_dir)) if cfg.paths.get("chunk_meta_dir") else None
+    annotation_root = Path(resolve(cfg.asr.annotation_csv_dir))
+    chunk_meta_dir = Path(resolve(cfg.asr.annotation_json_dir))
     language = cfg.asr.get("language", "fi") if cfg.get("asr") else "fi"
     batch_size = int(cfg.asr.get("batch_size", 8)) if cfg.get("asr") else 8
     model_path = cfg.asr.get("asr_model", None) if cfg.get("asr") else None
