@@ -399,4 +399,93 @@ mtkd.inference_temperature=<T>
 ```
 
 or hard-code `torch.softmax(logits / T, dim=-1)` in any downstream script.
+
+## Stage 4 : Inference (frozen checkpoints)
+
+| # | Command | Config location & how to change it | Outputs |
+|---|---------|------------------------------------|---------|
+| 1 | `tea infer-mtkd` | **Main config:** `conf/mtkd/mtkd.yaml` → `infer` block + `inference_temperature` | Prediction JSON (grouped by video) under `generated/mtkd_inference/` (or the path you set). Optionally prints UAR/WAR + confusion matrix when annotations are available. |
+| 2 | `tea extract-embeddings` *(optional)* | **Main config:** `conf/mtkd/mtkd.yaml` → `embeddings` block | Per-video (or per-benchmark-split) folders under `generated/embeddings/` containing `pooled.npy`, `projected.npy`, `logits.npy`, `probabilities.npy`, `predictions.npy`, `names.npy`, optional layer reps, and `metadata.csv` / `metadata.json`. |
+
+## How to call
+
+### 1. `tea infer-mtkd`
+
+Runs a frozen MTKD student on raw audio (a single file or a whole directory tree of chunks).  
+Writes a JSON of per-chunk probabilities grouped by video folder (the format expected by Stage 5 analysis).  
+If annotation CSVs are supplied it also prints a confusion matrix, UAR and WAR.
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `mtkd.infer.input` | File or directory of audio to run on | **Required** (default: `paths.chunk_audio_dir`) |
+| `mtkd.infer.checkpoint` | Student checkpoint to load | Optional (default: `paths.mtkd_student_ckpt` / `mtkd.default_student_checkpoint`) |
+| `mtkd.infer.save_output` | Whether to write the prediction JSON | Optional (default: `true`) |
+| `mtkd.infer.output` | Path of the prediction JSON | Optional (default: `paths.infer.infer_output_path`) |
+| `mtkd.infer.eval` | If `true` and annotations exist, print UAR/WAR + confusion matrix | Optional (default: `true`) |
+| `mtkd.infer.annotations_dir` | Directory of `<video_id>.csv` files used for the optional evaluation | Optional (default: `paths.annotation_root`) |
+| `mtkd.infer.per_teacher` | Group files by teacher before batching / report mean-per-teacher metrics | Optional (default: `false`) |
+| `mtkd.infer.batch_size` | Inference batch size | Optional (default: `8`, falls back to `mtkd.hyperparams.batch_size`) |
+| `mtkd.inference_temperature` | Scalar `T` applied as `softmax(logits / T)`. `null` = plain softmax | Optional (default: `null`) |
+| `mtkd.model_ckpt` | HuggingFace base model (architecture only) | Optional (default: `facebook/wav2vec2-base`) |
+| `mtkd.hyperparams.max_duration_sec` | Max audio duration (s) | Optional (default: `20.0`) |
+
+```bash
+# Default: run on the chunked classroom audio, save predictions, print metrics
+tea infer-mtkd
+
+# Explicit paths + temperature scaling from Stage 3
+tea infer-mtkd \
+    mtkd.infer.input=generated/chunked_audios \
+    mtkd.infer.checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth \
+    mtkd.infer.output=generated/mtkd_inference/infer_result.json \
+    mtkd.inference_temperature=1.30
+
+# Per-teacher metrics
+tea infer-mtkd mtkd.infer.per_teacher=true
+```
+
+---
+
+### 2. `tea extract-embeddings` *(optional)*
+
+Extracts pooled / projected embeddings, logits, probabilities and (optionally) intermediate transformer-layer representations.  
+Used by the child-speech and feature-fusion probes in Stage 6.
+
+Two modes, selected by `mtkd.embeddings.source`:
+
+- `videos` (default) – walk a directory of per-video chunk folders (classroom data).
+- `fesc` / `iemocap` / `cafe` – walk the corresponding benchmark sessions & splits.
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `mtkd.embeddings.source` | `videos` \| `fesc` \| `iemocap` \| `cafe` | Optional (default: `videos`) |
+| `mtkd.embeddings.checkpoint` | Student checkpoint to load | Optional (default: `mtkd.default_student_checkpoint`) |
+| `mtkd.embeddings.output_dir` | Root directory for the extracted arrays | Optional (default: `paths.embedding_root`) |
+| `mtkd.embeddings.batch_size` | Extraction batch size | Optional (default: `16`) |
+| `mtkd.embeddings.layers` | Extra transformer layer indices to mean-pool and save (0–12) | Optional (default: `[]`) |
+| **When `source=videos`** | | |
+| `mtkd.embeddings.input_dir` | Directory whose sub-folders are per-video chunk sets | **Required** for this mode (default: `paths.chunk_audio_dir`) |
+| `mtkd.embeddings.annotations_dir` | Directory of `<video_id>.csv` files (attaches `true_label` to metadata) | Optional (default: `paths.annotation_root`) |
+| **When `source=fesc\|iemocap\|cafe`** | | |
+| `mtkd.embeddings.sessions` | Session list or `"all"` | Optional (default: `"all"`) |
+| `mtkd.embeddings.splits` | Which splits to process | Optional (default: `[train, dev, test]`) |
+| `mtkd.model_ckpt` | HuggingFace base model (architecture only) | Optional (default: `facebook/wav2vec2-base`) |
+| `mtkd.hyperparams.max_duration_sec` | Max audio duration (s) | Optional (default: `20.0`) |
+
+```bash
+# Classroom videos (default)
+tea extract-embeddings
+
+# Explicit classroom paths + extra layers
+tea extract-embeddings \
+    mtkd.embeddings.source=videos \
+    mtkd.embeddings.input_dir=generated/chunked_audios \
+    mtkd.embeddings.output_dir=generated/embeddings \
+    mtkd.embeddings.layers=[9,12]
+
+# Benchmark dataset (e.g. FESC session 6, test split only)
+tea extract-embeddings \
+    mtkd.embeddings.source=fesc \
+    mtkd.embeddings.sessions=[6] \
+    mtkd.embeddings.splits=[test]
 ```
