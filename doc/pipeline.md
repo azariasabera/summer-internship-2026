@@ -307,3 +307,96 @@ tea finetune-classroom \
     classroom.batch_size=8 \
     classroom.base_checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth
 ```
+
+---
+
+## Stage 3 : Checkpoint evaluation & calibration
+
+| # | Command | Config location & how to change it | Outputs |
+|---|---------|------------------------------------|---------|
+| 1 | `tea evaluate-mtkd` | **Main config:** `conf/mtkd/mtkd.yaml` (runtime keys: `linguality`, `language`, `session`, `eval_checkpoint`, `use_default_eval_ckpt`) | Printed UAR / WAR / Accuracy + confusion matrix on the held-out benchmark test split (report Tables 4/5). No files written. |
+| 2 | `tea calibrate` | **Main config:** `conf/mtkd/mtkd.yaml` (runtime keys: `linguality`, `language`, `session`, `calibrate_checkpoint`, `use_default_calibrate_ckpt`) | Fitted temperature `T`, before/after ECE & confidence, per-class breakdown and confusion matrix (report Table 14). No files written; the scalar `T` is printed for later use at inference. |
+
+## How to call?
+
+### 1. `tea evaluate-mtkd`
+
+Teacher-free evaluation of a trained MTKD student on its labelled benchmark test split (FESC / IEMOCAP / CaFE).  
+
+Checkpoint selection priority (first match wins):
+
+1. `mtkd.linguality` + `mtkd.language` + `mtkd.session` → constructs  
+   `{checkpoint_save_dir}/MTKD_{linguality}_{language}_S{session}.pth`
+2. `mtkd.eval_checkpoint` (explicit path)
+3. `mtkd.use_default_eval_ckpt=true` → uses `mtkd.default_student_checkpoint`
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `mtkd.linguality` | `Monolingual` or `Multilingual` (used to locate the checkpoint and build the test set) | **Required** unless `eval_checkpoint` or `use_default_eval_ckpt` is set |
+| `mtkd.language` | `EN` / `FI` / `FR` | **Required** unless `eval_checkpoint` or `use_default_eval_ckpt` is set |
+| `mtkd.session` | Session / fold index | **Required** unless `eval_checkpoint` or `use_default_eval_ckpt` is set |
+| `mtkd.eval_checkpoint` | Explicit path to a `.pth` file | Optional (overrides the constructed path) |
+| `mtkd.use_default_eval_ckpt` | Fall back to `mtkd.default_student_checkpoint` | Optional (default: `false`) |
+| `mtkd.default_student_checkpoint` | Default student used when `use_default_eval_ckpt=true` | Optional (default: `paths.mtkd_student_ckpt`) |
+| `mtkd.checkpoint_save_dir` | Directory that contains the trained students | Optional (default from yaml / paths) |
+| `mtkd.model_ckpt` | HuggingFace base model (architecture only) | Optional (default: `facebook/wav2vec2-base`) |
+| `mtkd.hyperparams.batch_size` | Evaluation batch size | Optional (default: `8`) |
+| `mtkd.hyperparams.max_duration_sec` | Max audio duration (s) | Optional (default: `20.0`) |
+
+```bash
+# Evaluate the student trained for Multilingual FI session 6
+tea evaluate-mtkd mtkd.linguality=Multilingual mtkd.language=FI mtkd.session=6
+
+# Explicit checkpoint path
+tea evaluate-mtkd mtkd.eval_checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth
+
+# Use the configured default student
+tea evaluate-mtkd mtkd.use_default_eval_ckpt=true
+```
+
+---
+
+### 2. `tea calibrate`
+
+Fits a single scalar temperature `T` that minimises NLL of `softmax(logits / T)` on the **dev** split of the same benchmark. 
+Accuracy is unchanged by construction; only confidence / ECE change.
+
+Checkpoint selection priority (identical logic to `evaluate-mtkd`):
+
+1. `mtkd.linguality` + `mtkd.language` + `mtkd.session`
+2. `mtkd.calibrate_checkpoint` (explicit path – linguality/language/session are parsed from the filename)
+3. `mtkd.use_default_calibrate_ckpt=true` → `mtkd.default_student_checkpoint`
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `mtkd.linguality` | `Monolingual` or `Multilingual` | **Required** unless `calibrate_checkpoint` or `use_default_calibrate_ckpt` is set |
+| `mtkd.language` | `EN` / `FI` / `FR` | **Required** unless `calibrate_checkpoint` or `use_default_calibrate_ckpt` is set |
+| `mtkd.session` | Session / fold index | **Required** unless `calibrate_checkpoint` or `use_default_calibrate_ckpt` is set |
+| `mtkd.calibrate_checkpoint` | Explicit path to a `.pth` file | Optional (overrides the constructed path) |
+| `mtkd.use_default_calibrate_ckpt` | Fall back to `mtkd.default_student_checkpoint` | Optional (default: `false`) |
+| `mtkd.default_student_checkpoint` | Default student used when `use_default_calibrate_ckpt=true` | Optional (default: `paths.mtkd_student_ckpt`) |
+| `mtkd.checkpoint_save_dir` | Directory that contains the trained students | Optional |
+| `mtkd.model_ckpt` | HuggingFace base model (architecture only) | Optional (default: `facebook/wav2vec2-base`) |
+| `mtkd.hyperparams.batch_size` | Batch size while collecting logits | Optional (default: `8`) |
+| `mtkd.hyperparams.max_duration_sec` | Max audio duration (s) | Optional (default: `20.0`) |
+| `mtkd.inference_temperature` | (Not used by this command – only relevant at inference time) | Optional (default: `null`) |
+
+```bash
+# Calibrate the student trained for Multilingual FI session 6
+tea calibrate mtkd.linguality=Multilingual mtkd.language=FI mtkd.session=6
+
+# Explicit checkpoint (linguality/language/session parsed from the filename)
+tea calibrate mtkd.calibrate_checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth
+
+# Use the configured default student
+tea calibrate mtkd.use_default_calibrate_ckpt=true
+```
+
+**Note:** The fitted temperature is only printed. To apply it later (e.g. in `tea infer-mtkd`) set
+
+```bash
+mtkd.inference_temperature=<T>
+```
+
+or hard-code `torch.softmax(logits / T, dim=-1)` in any downstream script.
+```
