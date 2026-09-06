@@ -49,6 +49,7 @@ student_ckpt_dir: ${paths.checkpoint_root}/mtkd
 mtkd_student_ckpt: ${paths.student_ckpt_dir}/MTKD_Multilingual_FI_S6.pth
 classroom_finetune_dir: ${paths.checkpoint_root}/classroom_finetuned
 noise_retrain_dir: ${paths.checkpoint_root}/noise_retrained
+ckpt_save_dir: ${paths.generated_root}/checkpoints
 
 # FESC-contaminated augmentation audio cache
 fesc_contaminated_dir: ${paths.generated_root}/fesc_contaminated

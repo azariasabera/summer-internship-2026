@@ -36,6 +36,7 @@ cafe_old_root: /m/teamwork/t40511_asr/c/CaFE/data
 
 checkpoint_root: ${paths.checkpoint_root}/teachers
 checkpoint_name_template: "FT_Monolingual_{language}_S{session}.pth"
+checkpoint_save_dir: ${paths.ckpt_save_dir}/teachers
 
 # --- Runtime overrides for `tea train-teacher` (null until set on the CLI) ---
 language: null    # EN | FI | FR
