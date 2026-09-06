@@ -7,6 +7,9 @@ use_three_class: false    # false = native 4-class MTKD; true = 3-class polarity
 methods: [binary, tcp, temperature]
 output_dir: ${paths.confidence.confidence_output_dir}
 
+annotation_dir: ${paths.annotation_root}
+chunk_audio_dir: ${paths.chunk_audio_dir}
+
 # Shared reliability-net training hyperparameters (all three nets)
 hyperparams:
   val_frac: 0.15

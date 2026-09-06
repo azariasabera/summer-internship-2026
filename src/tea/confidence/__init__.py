@@ -58,7 +58,7 @@ def confidence_cli(cfg) -> int:
         return 2
 
     df, mtkd_classes, sentiment_classes = build_master_table(
-        csv_root=cfg.paths.annotation_root, audio_root=cfg.paths.chunk_audio_dir,
+        csv_root=cfg.confidence.annotation_dir, audio_root=cfg.confidence.chunk_audio_dir,
         mtkd_json_path=cc.mtkd_json, sentiment_fi_json_path=cc.sentiment_fi_json,
         sentiment_en_json_path=cc.get("sentiment_en_json"),
         use_three_class=cc.get("use_three_class", False), excluded_videos=cc.exclude_videos,
