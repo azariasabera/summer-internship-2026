@@ -489,3 +489,177 @@ tea extract-embeddings \
     mtkd.embeddings.sessions=[6] \
     mtkd.embeddings.splits=[test]
 ```
+
+---
+
+## Stage 5 : Analysis / plots / tables
+
+| # | Command | Config location & how to change it | Outputs |
+|---|---------|------------------------------------|---------|
+| 1 | `tea evaluate-classroom` | **Main config:** `conf/analysis/analysis.yaml` | Printed per-video + overall WAR/UAR/F1 + confusion matrices, accuracy-by-child-speech, accuracy-by-annotation-confidence, child-speech-by-predicted-emotion. Optionally writes `joined_predictions.csv` + `overall_confusion_matrix.csv` under `analysis.output_dir`. |
+| 2 | `tea temporal` | **Main config:** `conf/analysis/analysis.yaml` | Printed temporal-consistency score and extended stability metrics (transitions/min, blips, mean run length) per video and pooled. |
+| 3 | `tea noise-analysis` | **Main config:** `conf/analysis/analysis.yaml` → `noise_conditions` | Predicted-class distribution across noise conditions (printed + optional CSV). Optionally also reports non-speech prediction distributions. |
+| 4 | `tea acoustic-by-emotion` | **Main config:** `conf/analysis/analysis.yaml` | Duration / loudness (dB) / speaking-rate summaries grouped by predicted emotion. Optional CSVs under `analysis.output_dir`. |
+| 5 | `tea emotion-arc` | **Main config:** `conf/analysis/analysis.yaml` → `emotion_arc` | Smoothed emotion-probability arc plot for one video, saved under `emotion_arc.plot_save_dir`. |
+
+**Dependencies (what each command actually needs)**
+
+Stage 5 is post-hoc analysis. Every command consumes the prediction JSON
+produced by `tea infer-mtkd` (Stage 4) and the annotation CSVs produced by
+Stage 1 (`tea chunk` → `tea merge-annotations`, optionally `tea apply-asr`).
+
+| Command | Upstream requirements |
+|---------|------------------------|
+| `tea evaluate-classroom` | Stage 4 prediction JSON + Stage 1 annotation CSVs (`gt_label`, `confidence`, `overlap`) |
+| `tea temporal` | Same as above; annotation CSVs must also contain `start` / `end` |
+| `tea noise-analysis` | **One Stage-4 prediction JSON per noise condition** listed under `analysis.noise_conditions`, plus Stage 1 annotation CSVs |
+| `tea acoustic-by-emotion` | Stage 4 prediction JSON + Stage 1 annotation CSVs; **loudness** also needs the original full-length audio (`analysis.audio_root`); **speaking-rate** needs `transcription` from `tea apply-asr` |
+| `tea emotion-arc` | Stage 4 prediction JSON with per-class probabilities + the chosen video’s annotation CSV |
+
+Nothing in this stage needs the Stage 2/3 training or calibration checkpoints
+unless you intentionally re-ran Stage 4 with a different checkpoint or
+`mtkd.inference_temperature`.
+
+## How to call?
+
+Shared keys used by almost every Stage-5 command:
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `analysis.mtkd_json` | Path to the MTKD prediction JSON produced by `tea infer-mtkd` | **Required** for evaluate-classroom / temporal / acoustic-by-emotion / emotion-arc (default: `paths.infer.infer_output_path`) |
+| `analysis.annotation_dir` | Directory of per-video annotation CSVs | Optional (default: `paths.annotation_root`) |
+| `analysis.output_dir` | Where optional CSVs / plots are written | Optional (default: `paths.analysis.analysis_output_dir`) |
+
+---
+
+### 1. `tea evaluate-classroom`
+
+Joins the prediction JSON onto the annotation CSVs and reports:
+
+- 4-class WAR / UAR / Macro-F1 / Weighted-F1 + confusion matrix (per-video and pooled)
+- optional 3-class polarity comparison (`happiness→positive`, `anger/sadness→negative`, `neutral→neutral`)
+- accuracy split by child-speech presence (`overlap > 0`)
+- accuracy split by annotation confidence (1 / 2 / 3)
+- proportion of child speech by GT vs. predicted emotion
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `analysis.mtkd_json` | Prediction JSON | **Required** (default: `paths.infer.infer_output_path`) |
+| `analysis.annotation_dir` | Annotation CSVs | Optional (default: `paths.annotation_root`) |
+| `analysis.three_class` | Also run the 3-class sentiment evaluation | Optional (default: `false`) |
+| `analysis.output_dir` | Write `joined_predictions.csv` + `overall_confusion_matrix.csv` | Optional |
+
+```bash
+tea evaluate-classroom
+
+# with 3-class polarity comparison and explicit paths
+tea evaluate-classroom \
+    analysis.mtkd_json=generated/mtkd_inference/infer_result.json \
+    analysis.three_class=true
+```
+
+---
+
+### 2. `tea temporal`
+
+Computes temporal-consistency scores and extended stability metrics (transitions per minute, blips, mean run length, GT-vs-pred transition ratio) for every video, both pooled and per-video.  
+Also supports gap-threshold merging of near-adjacent speech segments.
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `analysis.mtkd_json` | Prediction JSON (probabilities preferred) | **Required** |
+| `analysis.annotation_dir` | Annotation CSVs (must contain `start` / `end`) | Optional (default: `paths.annotation_root`) |
+| `analysis.output_dir` | Optional directory for any written tables | Optional |
+
+```bash
+tea temporal
+tea temporal analysis.mtkd_json=generated/mtkd_inference/infer_result.json
+```
+
+---
+
+### 3. `tea noise-analysis`
+
+Builds the predicted-class distribution table across multiple noise / filtering / retrain conditions.  
+Only speech chunks (those that have a `gt_label`) are counted.  
+Optionally also reports what the model predicts on non-speech chunks (sanity check).
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `analysis.noise_conditions` | Mapping `{condition_name: prediction_json_path}` | **Required** (defaults already listed in `conf/analysis/analysis.yaml`) |
+| `analysis.annotation_dir` | Annotation CSVs used to identify speech chunks | Optional (default: `paths.annotation_root`) |
+| `analysis.check_non_speech` | Also print non-speech prediction distributions | Optional (default: `false`) |
+| `analysis.output_dir` | Write `noise_condition_distribution.csv` | Optional |
+
+Default conditions (from `conf/analysis/analysis.yaml`):
+
+```yaml
+noise_conditions:
+  original: ${paths.infer.infer_output_path}
+  deepfilternet_15dB: generated/mtkd_inference/infer_result_15dB.json
+  deepfilternet_0dB: generated/mtkd_inference/infer_result_0dB.json
+  spectral_subtraction: generated/mtkd_inference/infer_result_spectral.json
+  retrain_5_15dB: generated/mtkd_inference/infer_result_5_15.json
+  retrain_10_25dB: generated/mtkd_inference/infer_result_10_25.json
+  retrain_15_30dB: generated/mtkd_inference/infer_result_15_30.json
+```
+
+```bash
+tea noise-analysis
+
+# override / add a condition on the CLI
+tea noise-analysis \
+    +analysis.noise_conditions.my_run=generated/mtkd_inference/my_run.json \
+    analysis.check_non_speech=true
+```
+
+---
+
+### 4. `tea acoustic-by-emotion`
+
+Computes duration, loudness (RMS dB) and speaking-rate (words/min) distributions grouped by **predicted** emotion.  
+Loudness requires the original full-length per-video audio (not the chunked files).
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `analysis.mtkd_json` | Prediction JSON | **Required** |
+| `analysis.annotation_dir` | Annotation CSVs (for speaking-rate matching) | Optional (default: `paths.annotation_root`) |
+| `analysis.audio_root` | Directory of full (unchunked) per-video audio files | Optional – loudness is skipped if unset (default: `paths.audio_root`) |
+| `analysis.output_dir` | Write per-chunk CSVs | Optional |
+| `classroom.excluded_videos` | Video IDs skipped during the join | Optional (default: `[1B3261]`) |
+
+```bash
+tea acoustic-by-emotion
+
+# explicit paths
+tea acoustic-by-emotion \
+    analysis.mtkd_json=generated/mtkd_inference/infer_result.json \
+    analysis.audio_root=data/classroom_audio
+```
+
+---
+
+### 5. `tea emotion-arc`
+
+Plots the raw + smoothed emotion-probability curves over time for a single video.  
+Smoothing can be a moving average or a Gaussian filter.
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `analysis.mtkd_json` | Prediction JSON (must contain per-class probabilities) | **Required** |
+| `analysis.annotation_dir` | Annotation CSVs (for time stamps + non-speech shading) | Optional (default: `paths.annotation_root`) |
+| `analysis.emotion_arc.video` | Video ID to plot | **Required** (default: `1B2251`) |
+| `analysis.emotion_arc.plot_save_dir` | Directory where the figure is saved | Optional (default: `paths.analysis.plot_save_dir`) |
+| `analysis.emotion_arc.ma.window` | Moving-average window size | Optional (default: `5`) |
+| `analysis.emotion_arc.gaussian.sigma` | Gaussian sigma | Optional (default: `2.0`) |
+| `analysis.emotion_arc.gaussian.radius` | Gaussian radius (`null` → derived from sigma × truncate) | Optional (default: `null`) |
+| `analysis.emotion_arc.gaussian.truncate` | Gaussian truncate factor | Optional (default: `4.0`) |
+
+```bash
+tea emotion-arc
+
+# different video + Gaussian smoothing parameters
+tea emotion-arc \
+    analysis.emotion_arc.video=1B2251 \
+    analysis.emotion_arc.gaussian.sigma=1.5
+```
