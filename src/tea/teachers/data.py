@@ -50,10 +50,10 @@ def iemocap(session: int, cfg: DictConfig) -> DatasetDict:
     session:
         Session number (1-5).
     cfg:
-        Resolved Hydra config (reads `cfg.paths.splits_root`/`datasets_root`
+        Resolved Hydra config (reads `cfg.teachers.splits_root`/`datasets_root`
         and `cfg.teachers.iemocap_old_root`).
     """
-    splits_root = resolve(cfg.paths.splits_root)
+    splits_root = resolve(cfg.teachers.splits_root)
     with open(splits_root / "iemocap" / f"session{session}" / "train.json") as f:
         train_data = json.load(f)
     with open(splits_root / "iemocap" / f"session{session}" / "test.json") as f:
@@ -63,7 +63,7 @@ def iemocap(session: int, cfg: DictConfig) -> DatasetDict:
         df = pd.DataFrame.from_dict(data, orient="index").reset_index()
         df = df.rename(columns={"index": "file_id", "wav": "audio"})
         df["audio"] = df["audio"].apply(
-            lambda p: _update_iemocap_path(p, str(resolve(cfg.paths.datasets_root)), cfg.teachers.iemocap_old_root)
+            lambda p: _update_iemocap_path(p, str(resolve(cfg.teachers.datasets_root)), cfg.teachers.iemocap_old_root)
         )
         df["emo"] = df["emo"].apply(_update_iemocap_label)
         df["label"] = df["emo"].map(LABEL2ID)
@@ -84,8 +84,8 @@ def fesc(session: int, cfg: DictConfig) -> DatasetDict:
         Resolved Hydra config.
     """
     folder = cfg.teachers.fesc_session_map[session]
-    splits_root = resolve(cfg.paths.splits_root)
-    fesc_new_prefix = str(resolve(cfg.paths.datasets_root) / "FESC") + "/"
+    splits_root = resolve(cfg.teachers.splits_root)
+    fesc_new_prefix = str(resolve(cfg.teachers.datasets_root) / "FESC") + "/"
 
     splits = {}
     for split in ("train", "test", "dev"):
@@ -112,8 +112,8 @@ def cafe(session: int | None, cfg: DictConfig) -> DatasetDict:
     cfg:
         Resolved Hydra config.
     """
-    splits_root = resolve(cfg.paths.splits_root)
-    cafe_root = str(resolve(cfg.paths.cafe_root))
+    splits_root = resolve(cfg.teachers.splits_root)
+    cafe_root = str(resolve(cfg.teachers.cafe_root))
 
     frames = []
     for file in sorted((splits_root / "CaFE_json_splits").glob("*")):

@@ -67,7 +67,7 @@ class TeacherTrainer:
     def checkpoint_path(self, language: str, session: int) -> Path:
         """Resolve the checkpoint path for a given language/session, per `cfg.teachers.checkpoint_name_template`."""
         name = self.cfg.teachers.checkpoint_name_template.format(language=language, session=session)
-        return resolve(self.cfg.paths.checkpoint_root) / "teachers" / name
+        return resolve(self.cfg.teachers.checkpoint_root) / name
 
     def _train_epoch(self, model, loader, optimizer, loss_fn, desc="Training") -> dict:
         from tqdm import tqdm

@@ -34,8 +34,13 @@ fesc_old_prefix: /m/triton/scratch/t405-puhe/p/porjazd1/SER/data/Finnish/16kh_re
 iemocap_old_root: /m/teamwork/t40511_asr/c
 cafe_old_root: /m/teamwork/t40511_asr/c/CaFE/data
 
+checkpoint_root: ${paths.checkpoint_root}/teachers
 checkpoint_name_template: "FT_Monolingual_{language}_S{session}.pth"
 
 # --- Runtime overrides for `tea train-teacher` (null until set on the CLI) ---
 language: null    # EN | FI | FR
 session: null     # 1-5 for EN | 1-9 for FI | 1 for FR
+
+splits_root: ${paths.splits_root}
+datasets_root: ${paths.datasets_root}
+cafe_root: ${paths.cafe_root}
