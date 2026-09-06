@@ -1,11 +1,11 @@
 # conf/vad/vad.yaml
 
 audio_root: ${paths.audio_root}
-out_dir: ${paths.chunk_audio_dir}
+json_save_dir: ${paths.chunk_meta_dir}
 annotation_root: ${paths.annotation_root}
 
 save_audios: false
-save_dir: ${paths.chunk_audio_dir}
+audio_save_dir: ${paths.chunk_audio_dir}
 
 save_json_data: true
 

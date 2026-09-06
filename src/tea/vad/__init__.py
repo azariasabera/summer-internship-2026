@@ -35,7 +35,7 @@ def chunk(cfg: DictConfig) -> int:
         Process exit status.
     """
     audio_root = resolve(cfg.vad.audio_root)
-    out_dir = ensure_dir(resolve(cfg.vad.out_dir))
+    out_dir = ensure_dir(resolve(cfg.vad.json_save_dir))
     save_json_data = bool(cfg.vad.get("save_json_data", True))
     save_audios = bool(cfg.vad.get("save_audios", False))
 
@@ -51,7 +51,7 @@ def chunk(cfg: DictConfig) -> int:
     logger.info("Chunked %d file(s).", len(results))
 
     if save_audios:
-        audio_save_dir = ensure_dir(resolve(cfg.vad.get("save_dir")))
+        audio_save_dir = ensure_dir(resolve(cfg.vad.get("audio_save_dir")))
         save_audio_chunks(segments=results, save_pth=audio_save_dir)
         logger.info("Saved chunk WAVs to %s.", str(audio_save_dir))
 
