@@ -28,3 +28,7 @@ feature_fusion:
   master_table_name: master_table.pkl
   
   exclude: [1B3261]
+
+embedding_dir: ${paths.embedding_root}
+annotation_dir: ${paths.annotation_root}
+chunk_audio_dir: ${paths.chunk_audio_dir}

@@ -171,12 +171,12 @@ class ChildSpeechProbe:
 def probe_child_speech_cli(cfg: DictConfig) -> int:
     """`tea probe-child-speech` entry point.
 
-    Requires `probes.embedding_root` (defaults to `cfg.paths.embedding_root`).
+    Requires `probes.embedding_root` (defaults to `cfg.probes.embedding_dir`).
     """
     pc = cfg.probes.get("child_speech", {})
-    embedding_root = pc.get("embedding_root") or cfg.paths.embedding_root
+    embedding_root = pc.get("embedding_root") or cfg.probes.embedding_dir
 
-    df = load_dataset(embedding_root, cfg.paths.annotation_root)
+    df = load_dataset(embedding_root, cfg.probes.annotation_dir)
     probe = ChildSpeechProbe(
         n_splits=pc.get("n_splits", 5), C=pc.get("C", 1.0), max_iter=pc.get("max_iter", 1000), seed=cfg.seed
     )

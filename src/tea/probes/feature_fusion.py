@@ -41,12 +41,12 @@ def probe_feature_fusion_cli(cfg: DictConfig) -> int:
 
     # build master table (features + labels)
     df, mtkd_classes, _ = build_master_table(
-        csv_root=cfg.paths.annotation_root,
-        audio_root=ff.get("audio_root") or cfg.paths.chunk_audio_dir,
+        csv_root=cfg.probes.annotation_dir,
+        audio_root=ff.get("audio_root") or cfg.probes.chunk_audio_dir,
         mtkd_json_path=ff.mtkd_json,
         sentiment_fi_json_path=ff.sentiment_fi_json,
         sentiment_en_json_path=ff.get("sentiment_en_json"),
-        embedding_root=ff.get("embedding_root") or cfg.paths.get("embedding_root"),
+        embedding_root=ff.get("embedding_root") or cfg.probes.get("embedding_dir"),
         compute_acoustic=True,
     )
 
