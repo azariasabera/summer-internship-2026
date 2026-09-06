@@ -663,3 +663,125 @@ tea emotion-arc \
     analysis.emotion_arc.video=1B2251 \
     analysis.emotion_arc.gaussian.sigma=1.5
 ```
+
+---
+
+## Stage 6 : Probes / confidence estimation
+
+| # | Command | Config location & how to change it | Outputs |
+|---|---------|------------------------------------|---------|
+| 1 | `tea confidence` | **Main config:** `conf/confidence/confidence.yaml` | LOTO-CV results for binary / TCP / instance-temperature reliability nets. CSVs under `confidence.output_dir` (`binary_results.csv`, `tcp_results.csv`, `temperature_results.csv` + per-chunk variants). |
+| 2 | `tea probe-child-speech` | **Main config:** `conf/probes/probes.yaml` → `child_speech` | GroupKFold logistic probe of pooled embeddings → child-speech presence. Fold CSV under `probes.child_speech.output_dir`. |
+| 3 | `tea probe-feature-fusion` | **Main config:** `conf/probes/probes.yaml` → `feature_fusion` | Ablation tables for softmax-base vs embedding-base + handcrafted feature groups (report Table 23). CSVs (+ optional master-table pickle) under `probes.feature_fusion.output_dir`. |
+
+**Dependencies (what each command actually needs)**
+
+Stage 6 sits on top of frozen Stage-4 artefacts and Stage-1 annotations (plus optional Stage-1 sentiment).
+
+| Command | Upstream requirements |
+|---------|------------------------|
+| `tea confidence` | Stage 4 prediction JSON + Stage 1 annotation CSVs + Stage 1 `tea sentiment` (`sentiment_fi.json`; `sentiment_en.json` optional). Builds a master feature table (MTKD probs + text-sentiment + acoustics). |
+| `tea probe-child-speech` | Stage 4 `tea extract-embeddings` (`generated/embeddings/<video>/pooled.npy` + `metadata.csv`) + Stage 1 annotation CSVs with an `overlap` column |
+| `tea probe-feature-fusion` | Stage 4 prediction JSON + Stage 1 `tea sentiment` (`sentiment_fi.json`) + Stage 1 annotation CSVs; optionally Stage 4 embeddings and chunk audio for the embedding-base / acoustic feature groups |
+
+## How to call?
+
+All commands accept Hydra overrides of the form `group.key=value`.  
+Paths are resolved from `conf/paths/paths.yaml`; change them there or on the CLI.
+
+---
+
+### 1. `tea confidence`
+
+Builds a master feature table (MTKD softmax probabilities + FI/EN text-sentiment + simple acoustics) and runs Leave-One-Teacher-Out cross-validation for three reliability approaches:
+
+| Method | What it learns |
+|--------|----------------|
+| `binary` | P(correct \| features) with binary cross-entropy |
+| `tcp` | True-Class-Probability regression + ranking loss |
+| `temperature` | Instance-dependent temperature scaling |
+
+All three share the same LOTO footing and calibration metrics (ECE, AUROC-correctness, Brier, NLL, risk-coverage).
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `confidence.mtkd_json` | MTKD prediction JSON from Stage 4 | **Required** (default: `paths.infer.infer_output_path`) |
+| `confidence.sentiment_fi_json` | Finnish sentiment JSON from `tea sentiment` | **Required** (default: `paths.sentiment_fi`) |
+| `confidence.sentiment_en_json` | English sentiment JSON (optional extra features) | Optional (default: `paths.sentiment_en`) |
+| `confidence.use_three_class` | Map MTKD labels to 3-class polarity before training | Optional (default: `false`) |
+| `confidence.methods` | Subset of `[binary, tcp, temperature]` to run | Optional (default: all three) |
+| `confidence.output_dir` | Where result / per-chunk CSVs are written | Optional (default: `paths.confidence.confidence_output_dir`) |
+| `confidence.exclude_videos` | Video IDs dropped from the master table | Optional (default: `[1B3261]`) |
+| `confidence.hyperparams.val_frac` | Internal validation fraction per LOTO fold | Optional (default: `0.15`) |
+| `confidence.hyperparams.epochs` | Max training epochs for the reliability nets | Optional (default: `300`) |
+| `confidence.hyperparams.lr` | Learning rate | Optional (default: `1e-3`) |
+| `confidence.hyperparams.weight_decay` | Weight decay | Optional (default: `1e-3`) |
+| `confidence.hyperparams.patience` | Early-stopping patience | Optional (default: `30`) |
+| `confidence.hyperparams.seed` | RNG seed | Optional (default: `42`) |
+
+```bash
+tea confidence
+
+# explicit paths + only binary + TCP
+tea confidence \
+    confidence.mtkd_json=generated/mtkd_inference/infer_result.json \
+    confidence.sentiment_fi_json=generated/sentiment/sentiment_fi.json \
+    confidence.methods=[binary,tcp]
+```
+
+---
+
+### 2. `tea probe-child-speech`
+
+GroupKFold (grouped by `video_id`) logistic-regression probe: can the frozen student’s **pooled 768-d embeddings** predict whether child speech was present (`overlap > 0`), even though the student was never trained for that task?  
+Reports per-fold and pooled OOF WAR / UAR / precision / recall / F1.
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `probes.child_speech.embedding_root` | Root of per-video embedding folders from `tea extract-embeddings` | Optional (default: `paths.embedding_root`) |
+| `probes.annotation_dir` | Annotation CSVs (must contain `name`, `overlap`) | **Required** (default: `generated/annotations`) |
+| `probes.child_speech.n_splits` | Number of GroupKFold splits | Optional (default: `5`) |
+| `probes.child_speech.C` | Inverse regularisation strength for `LogisticRegression` | Optional (default: `1.0`) |
+| `probes.child_speech.max_iter` | Max solver iterations | Optional (default: `1000`) |
+| `probes.child_speech.output_dir` | Where `child_speech_probe_folds.csv` is written | Optional (default: `paths.probes.child_speech_out_dir`) |
+| `seed` | Global RNG seed passed to the classifier | Optional (default: `42`) |
+
+```bash
+tea probe-child-speech
+
+# explicit embedding root
+tea probe-child-speech \
+    probes.child_speech.embedding_root=generated/embeddings \
+    probes.child_speech.n_splits=5
+```
+
+---
+
+### 3. `tea probe-feature-fusion`
+
+Handcrafted-feature-fusion ablation (report Table 23).  
+Builds a master table (MTKD softmax + text-sentiment + optional acoustics + optional embeddings) and, for each chosen **base** representation (`softmax` and/or `embedding`), runs LOTO experiments that add every combination of the remaining feature groups.
+
+| Config key | What it does | Requiredness |
+|------------|--------------|--------------|
+| `probes.feature_fusion.mtkd_json` | MTKD prediction JSON | **Required** (default: `paths.infer.infer_output_path`) |
+| `probes.feature_fusion.sentiment_fi_json` | Finnish sentiment JSON | **Required** (default: `paths.sentiment_fi`) |
+| `probes.feature_fusion.sentiment_en_json` | English sentiment JSON | Optional (default: `paths.sentiment_en`) |
+| `probes.feature_fusion.embedding_root` | Embedding root (needed for the `embedding` base) | Optional (default: `paths.embedding_root`; set `null` to skip) |
+| `probes.feature_fusion.audio_root` | Chunk audio root (needed only if acoustic features are desired) | Optional (default: `paths.chunk_audio_dir`) |
+| `probes.feature_fusion.base` | `"softmax"`, `"embedding"`, or `null` (= run both when available) | Optional (default: `null`) |
+| `probes.feature_fusion.seed` | RNG seed for the ablation | Optional (default: global `seed`) |
+| `probes.feature_fusion.output_dir` | Where result CSVs are written | Optional (default: `paths.probes.feature_fusion_out_dir/feature_fusion`) |
+| `probes.feature_fusion.save_master_table` | Also pickle the built master table | Optional (default: `true`) |
+| `probes.feature_fusion.master_table_name` | Filename of the master-table pickle | Optional (default: `master_table.pkl`) |
+| `probes.feature_fusion.exclude` | Video IDs dropped from the table | Optional (default: `[1B3261]`) |
+
+```bash
+tea probe-feature-fusion
+
+# softmax base only, explicit paths
+tea probe-feature-fusion \
+    probes.feature_fusion.mtkd_json=generated/mtkd_inference/infer_result.json \
+    probes.feature_fusion.sentiment_fi_json=generated/sentiment/sentiment_fi.json \
+    probes.feature_fusion.base=softmax
+```
