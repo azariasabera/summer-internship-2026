@@ -37,6 +37,7 @@ multilingual_aux_session:
 
 # Default student checkpoint for `tea infer-mtkd` when none is given explicitly.
 default_student_checkpoint: ${paths.mtkd_student_ckpt}
+student_ckpt_dir: ${paths.student_ckpt_dir}
 
 # Inference-time temperature scaling. null (default) = no scaling
 inference_temperature: null
