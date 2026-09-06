@@ -1,3 +1,7 @@
 # conf/features/features.yaml
 
 sentiment_model: cardiffnlp/twitter-xlm-roberta-base-sentiment
+
+annotation_root: ${paths.annotation_root}
+sentiment_fi: ${paths.sentiment_fi}
+sentiment_en: ${paths.sentiment_en}

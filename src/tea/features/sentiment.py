@@ -148,18 +148,18 @@ class SentimentScorer:
 
 
 def sentiment_cli(cfg: DictConfig) -> int:
-    """`tea sentiment` -- score every annotation CSV's transcription/translation and write FI/EN JSONs.
+    """`tea sentiment`: score every annotation CSV's transcription/translation and write FI/EN JSONs.
 
     Parameters
     ----------
     cfg:
-        Resolved Hydra config. Reads `cfg.paths.annotation_root`,
-        writes to `cfg.paths.sentiment_fi` / `cfg.paths.sentiment_en`.
+        Resolved Hydra config. Reads `cfg.features.annotation_root` and `cfg.features.sentiment_model`,
+        writes to `cfg.features.sentiment_fi` and `cfg.features.sentiment_en`.
     """
     scorer = SentimentScorer(cfg.features.sentiment_model)
-    all_fi, all_en = scorer.build_corpus_json(cfg.paths.annotation_root)
+    all_fi, all_en = scorer.build_corpus_json(cfg.features.annotation_root)
 
-    fi_path, en_path = resolve(cfg.paths.sentiment_fi), resolve(cfg.paths.sentiment_en)
+    fi_path, en_path = resolve(cfg.features.sentiment_fi), resolve(cfg.features.sentiment_en)
     ensure_dir(fi_path.parent)
     ensure_dir(en_path.parent)
 
