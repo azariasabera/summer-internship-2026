@@ -34,8 +34,8 @@ def chunk(cfg: DictConfig) -> int:
     int
         Process exit status.
     """
-    audio_root = resolve(cfg.paths.audio_root)
-    out_dir = ensure_dir(resolve(cfg.paths.chunk_meta_dir))
+    audio_root = resolve(cfg.vad.audio_root)
+    out_dir = ensure_dir(resolve(cfg.vad.out_dir))
     save_json_data = bool(cfg.vad.get("save_json_data", True))
     save_audios = bool(cfg.vad.get("save_audios", False))
 
@@ -58,10 +58,10 @@ def chunk(cfg: DictConfig) -> int:
     # Mirror each JSON as an annotation CSV
     n_csv = 0
     for json_path in sorted(resolve(out_dir).glob("*.json")):
-        csv_path = resolve(cfg.paths.annotation_root) / f"{json_path.stem}.csv"
+        csv_path = resolve(cfg.vad.annotation_root) / f"{json_path.stem}.csv"
         vad_json_to_annotation_csv(json_path, csv_path)
         n_csv += 1
-    logger.info("Wrote %d annotation CSV(s) -> %s", n_csv, cfg.paths.annotation_root)
+    logger.info("Wrote %d annotation CSV(s) -> %s", n_csv, cfg.vad.annotation_root)
     return 0
 
 
