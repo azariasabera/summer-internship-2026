@@ -329,7 +329,7 @@ def temporal_cli(cfg: DictConfig) -> int:
         logger.error("Set analysis.mtkd_json")
         return 2
 
-    df = join_predictions(ac.mtkd_json, cfg.paths.annotation_root, excluded_videos=set(cfg.classroom.excluded_videos))
+    df = join_predictions(ac.mtkd_json, cfg.analysis.annotation_dir, excluded_videos=set(cfg.classroom.excluded_videos))
 
     consistency_rows, stability_rows = [], []
     for video, group in df.groupby("video"):
@@ -381,7 +381,7 @@ def emotion_arc_per_video(cfg: DictConfig) -> int:
     video_id = ea.video
 
     # Annotation CSV for this video
-    csv_path = resolve(cfg.paths.annotation_root) / f"{video_id}.csv"
+    csv_path = resolve(cfg.analysis.annotation_dir) / f"{video_id}.csv"
     if not csv_path.is_file():
         logger.error("Annotation CSV not found: %s", csv_path)
         return 2

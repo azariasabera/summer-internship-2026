@@ -154,7 +154,7 @@ def acoustic_by_emotion_cli(cfg: DictConfig) -> int:
         logger.error("Set analysis.mtkd_json")
         return 2
 
-    df = join_predictions(ac.mtkd_json, cfg.paths.annotation_root, excluded_videos=set(cfg.classroom.excluded_videos))
+    df = join_predictions(ac.mtkd_json, cfg.analysis.annotation_dir, excluded_videos=set(cfg.classroom.excluded_videos))
     df["duration"] = (df["end"] - df["start"]) / SAMPLE_RATE
 
     logger.info("=== Duration by predicted emotion ===")
@@ -167,7 +167,7 @@ def acoustic_by_emotion_cli(cfg: DictConfig) -> int:
     else:
         logger.info("analysis.audio_root not set -- skipping loudness (needs full per-video audio, not chunks).")
 
-    rate_df = add_speaking_rate(df, cfg.paths.annotation_root)
+    rate_df = add_speaking_rate(df, cfg.analysis.annotation_dir)
     logger.info("=== Speaking rate (wpm) by predicted emotion ===")
     logger.info("\n%s", summarize_by_predicted_emotion(rate_df, "speaking_rate_wpm"))
 
