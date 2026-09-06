@@ -49,7 +49,7 @@ class Trainer:
     def checkpoint_path(self, linguality: str, language: str, session: int, suffix: str = "") -> Path:
         """Resolve the checkpoint path for a training run, optionally with a noise-condition suffix."""
         name = f"MTKD_{linguality}_{language}_S{session}{suffix}.pth"
-        return resolve(self.cfg.mtkd.student_ckpt_dir) / name
+        return resolve(self.cfg.mtkd.checkpoint_save_dir) / name
 
     def _build_loaders(self, ds, feature_extractor, batch_size: int, augmentor: NoiseAugmentor | None):
         hp = self.cfg.mtkd.hyperparams
