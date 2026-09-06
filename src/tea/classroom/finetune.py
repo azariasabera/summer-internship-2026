@@ -240,7 +240,7 @@ class LOTOFineTuner:
 
         Parameters mirror `run_fold`; see there for details. Returns the
         full per-fold results plus pooled-OOF baseline/fine-tuned UAR/WAR
-        and confusion matrices, and writes `results_<tag>.json` under `cfg.paths.generated_root/classroom_finetune/`.
+        and confusion matrices, and writes `results_<tag>.json` under `generated/classroom_finetune/`.
         """
         cc = self.cfg.classroom
         set_seed(self.cfg.get("seed", 42))
