@@ -62,20 +62,43 @@ def evaluate_mtkd_cli(cfg: DictConfig) -> int:
     cfg:
         Resolved Hydra config.
     """
-    if cfg.mtkd.linguality is None or cfg.mtkd.language is None or cfg.mtkd.session is None:
-        logger.error("Set mtkd.linguality, mtkd.language and mtkd.session")
+    linguality = cfg.mtkd.get("linguality")
+    language = cfg.mtkd.get("language")
+    session = cfg.mtkd.get("session")
+    eval_checkpoint = cfg.mtkd.get("eval_checkpoint")
+    use_default_eval_ckpt = cfg.mtkd.get("use_default_eval_ckpt", False)
+
+    # Checkpoint selection priority:
+    #   1. linguality + language + session
+    #   2. eval_checkpoint
+    #   3. default_student_checkpoint
+    ckpt_path = None
+
+    if linguality is not None and language is not None and session is not None:
+        # Highest priority: construct checkpoint path from MTKD config
+        ckpt_path = resolve(cfg.mtkd.checkpoint_save_dir) / f"MTKD_{linguality}_{language}_S{session}.pth"
+
+    elif eval_checkpoint is not None:
+        # Second priority: explicitly provided checkpoint
+        ckpt_path = resolve(eval_checkpoint)
+
+    elif use_default_eval_ckpt:
+        # Lowest priority: configured default checkpoint
+        ckpt_path = resolve(cfg.mtkd.default_student_checkpoint)
+
+    else:
+        logger.error(
+            "No evaluation checkpoint specified. Set either "
+            "(mtkd.linguality, mtkd.language, mtkd.session), "
+            "mtkd.eval_checkpoint, or mtkd.use_default_eval_ckpt=true."
+        )
         return 2
-
-    linguality = cfg.mtkd.linguality
-    language = cfg.mtkd.language
-    session = cfg.mtkd.session
-
-    device = torch.device(cfg.device if torch.cuda.is_available() or cfg.device == "cpu" else "cpu")
-    ckpt_path = resolve(cfg.mtkd.student_ckpt_dir) / f"MTKD_{linguality}_{language}_S{session}.pth"
 
     if not ckpt_path.exists():
         logger.error("Checkpoint not found: %s", ckpt_path)
         return 1
+
+    logger.info("Using evaluation checkpoint: %s", ckpt_path)
 
     ds = mtkd_data.build_dataset(cfg, linguality, language, session)
 
