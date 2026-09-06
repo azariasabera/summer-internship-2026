@@ -384,9 +384,8 @@ def finetune_classroom_cli(cfg: DictConfig) -> int:
     """`tea finetune-classroom-loto` entry point.
 
     Requires `classroom.run.base_checkpoint` and `classroom.run.variant`.
-    Either set `classroom.run.config=A`..`F` to use a named report
-    configuration, or set `classroom.run.use_class_weight` /
-    `use_confidence_weight` / `augment_fesc` individually.
+    Set `classroom.run.use_class_weight` / `use_confidence_weight` / `augment_fesc` 
+    individually for different combination of configurations.
     """
     cc = cfg.get("classroom", {})
     if not cc:
