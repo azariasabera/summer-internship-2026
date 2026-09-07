@@ -1,31 +1,38 @@
 # `tea.asr`
 
-Whisper-based transcription / translation and text-sentiment probability extraction.
+Whisper-based transcription and translation of speech chunks.
 
-## Public API
+## Modules
 
-```python
-from tea.asr import Transcriber
+| File | Role |
+|------|------|
+| `transcriber.py` | `Transcriber` class wrapping Whisper (default `openai/whisper-large-v3`). Expects audio path or waveform; returns Finnish transcript or English translation. Manages GPU memory via `close()`. |
+| `__init__.py` | Exposes `transcribe_annotation_root(cfg)` which walks the annotation CSVs produced by `tea chunk` / `tea merge-annotations`, runs Whisper on the corresponding audio, and writes `transcription` / `translation` columns. |
 
-t = Transcriber()  # defaults to openai/whisper-large-v3
-text_fi = t.transcribe(audio_path_or_waveform)
-text_en = t.translate(audio_path_or_waveform)
-t.close()  # release CUDA memory when done with this instance
-```
+## Command
 
-Text-sentiment scoring (`cardiffnlp/twitter-xlm-roberta-base-sentiment`,
-used as a feature source, not part of transcription itself) moved to
-`tea.features` -- see that module.
+- `tea apply-asr` – transcribe + translate every speech chunk listed in the annotation root and update the CSVs in place.
 
-## Planned CLI
+## CLI
 
 ```bash
-tea apply_asr   # wires Transcriber output into annotation CSVs
+tea apply-asr
+tea apply-asr asr.model_name=openai/whisper-large-v3 asr.device=cuda
+tea apply-asr asr.annotation_csv_dir=generated/annotations
+
+# If we don't want to run the model again but attach existing asr outputs
+tea apply-asr asr.use_precomputed=true
 ```
 
-## Status
+Important configuration lives in `conf/asr/asr.yaml`:
 
-`Transcriber` class ported and usable directly. The `tea apply_asr` CLI
-command is registered but not yet wired to `tea.vad`'s chunk metadata
-format. Still needs that integration point once chunk-level audio access is
-finalized.
+| Key | Meaning |
+|-----|---------|
+| `asr.model_name` | HuggingFace / Whisper model identifier |
+| `asr.device` | `cuda` / `cpu` |
+| `asr.batch_size` | Inference batch size |
+| `asr.language` | Source language hint (Finnish) |
+| `asr.annotation_csv_dir` | Directory of per-video annotation CSVs |
+| `asr.audio_root` | Directory containing the cut WAV chunks (if used) |
+
+Pre-computed transcripts already present in the CSVs can be left untouched; the command only fills missing columns when run.
