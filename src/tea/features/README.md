@@ -1,44 +1,30 @@
 # `tea.features`
 
-Single source of truth for feature construction. Used by `tea.confidence`
-and `tea.probes`.
+Hand-crafted acoustic features, text-sentiment scores and the master feature table used by probes.
 
-## Public API
+## Modules
 
-```python
-from tea.features import SentimentScorer
+| File | Role |
+|------|------|
+| `acoustic.py` | Extracts duration, loudness, speaking-rate and related low-level descriptors from audio chunks. |
+| `sentiment.py` | Runs a multilingual sentiment model (FI/EN) on transcripts/translations and writes probability JSON files. Exposes `sentiment_cli(cfg)`. |
+| `softmax.py` | Softmax / temperature helpers for converting raw logits into calibrated probabilities. |
+| `master_table.py` | Builds the wide feature table that joins acoustic, sentiment and embedding columns for the fusion probes. |
+| `__init__.py` | Re-exports the public helpers. |
 
-scorer = SentimentScorer()  # cardiffnlp/twitter-xlm-roberta-base-sentiment
-probs = scorer.predict_probs("some transcribed text")  # {"positive": .., "neutral": .., "negative": ..}
+## Command
 
-fi_json, en_json = scorer.build_corpus_json("generated/annotations")
-```
+- `tea sentiment` – compute Finnish and/or English text-sentiment probabilities from the transcripts already present in the annotation CSVs.
 
 ## CLI
 
 ```bash
 tea sentiment
+tea sentiment features.annotation_root=generated/annotations
+tea sentiment \ 
+    features.annotation_root=generated/annotations \
+    features.sentiment_fi=generated/sentiment/sentiment_fi.json \
+    features.sentiment_en=generated/sentiment/sentiment_en.json
 ```
 
-Writes `cfg.paths.sentiment_fi` / `cfg.paths.sentiment_en` (FI/EN
-sentiment-probability JSONs, one per video per chunk), scoring every
-annotation CSV's `transcription`/`translation` columns.
-
-## Feature groups
-
-| Group | Module | Status |
-|---|---|---|
-| Text sentiment (FI / EN) | `sentiment.py` | Done |
-| MTKD softmax + derived (entropy, margin, max-prob) | `softmax.py` | Pending |
-| Acoustic (RMS, F0, voiced ratio, speech rate) | `acoustic.py` | Pending |
-| Master feature table (joins everything) | `master_table.py` | Pending |
-
-## Notes
-
-- `SentimentScorer.preprocess` strips repeated-phrase Whisper hallucination
-  artifacts (e.g. `"hello hello hello"` -> `"hello"`) before scoring.
-
-## Status
-
-`SentimentScorer` ported and CLI-wired. `acoustic.py`, `softmax.py`, and
-`master_table.py` are next.
+Important configuration lives in `conf/features/features.yaml`.
