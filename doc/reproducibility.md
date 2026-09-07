@@ -1,84 +1,307 @@
-# Reproducibility notes
+# Reproducibility
 
-This file is the reproduction map: for each report item, which command
-(and recipe) produces it, and any known caveats. It grows as each module
-is ported. See module's `README.md`'s "Status" section for what's done.
+This document maps every major section of the internship progress report
+(`internship_report.pdf`) onto the corresponding `tea` commands and
+configuration.  The goal is to re-obtain the reported tables and figures
+**without re-training models and without re-running ASR**.
 
-## Conventions
+Assumptions:
 
-- Every table below names a **recipe** (`recipes/<module>/<name>.sh`), not
-  raw code. Run the recipe, or read it to see the exact `tea` command.
-- "Caveats" flags anything ambiguous in the original dump that was resolved
-  with a judgment call, so it can be revisited.
+- Pre-computed annotation CSVs (with `gt_label`, `transcription`, …) already
+  exist under `data/annotations/` (or have been produced by Stage 1).
+- Final student checkpoints live under `final_models/`.
+- Prediction JSONs and embeddings can be regenerated with the commands below
+  if they are missing.
 
-## VAD chunking (Section 1.2 of the progress report)
+---
 
-| Item | Recipe | Notes |
-|---|---|---|
-| Segment boundaries (Table 3, Fig. 1) | `recipes/vad/baseline.sh` | Parameters must stay exactly as in `conf/vad/vad.yaml`; see `src/tea/vad/README.md`. |
+## 1. Annotation
 
-**Caveats:** none -- the VAD + refinement algorithm (`Segmenter._refine_segments`) was ported unchanged from `vad_chunking.txt`.
+### 1.2 VAD-based chunking
 
-**External/missing pieces still needed for full reproduction of Section 1:**
-- `my_annotation.ipynb` (VAD-vs-manual disagreement stats, Table 1) was referenced but not included in the original upload -- only its output tables were. Not yet reconstructed.
-- The joystick-comparison analysis (Section 1.7) reads supervisor-provided ground truth from `../Projects/data_teacher_emotions_gt/csv/joystick_*.csv`, which lives outside this repo and outside the classroom corpus. Point `paths.joystick_gt_root` (not yet added to `conf/paths/paths.yaml`) at wherever that data is mounted before running it.
+```bash
+tea chunk vad.save_audios=true
+# or with explicit overrides
+tea chunk \
+    vad.audio_root=data/classroom_audio \
+    vad.save_audios=true \
+    vad.save_json_data=true
+```
 
-## Noise processing (Section 4.1, Table 21)
+Produces the segment JSONs and the empty annotation CSV skeleton.
+The refinement parameters in `conf/vad/vad.yaml` must stay identical to the
+values used for the original annotations (see `src/tea/vad/README.md`).
 
-| Item | Recipe | Notes |
-|---|---|---|
-| DeepFilterNet 15dB / 0dB rows | `recipes/noise/attenuation_sweep.sh` | |
-| Custom Spectral Subtraction row | *(not yet wired to a recipe)* | `SpectralSubtractor` class exists in `tea.noise`; needs a per-chunk noise-reference selection step from `tea.analysis` before it has a CLI entry point. |
-| Retrain 5-15 / 10-25 / 15-30 dB rows | *(not yet wired to a recipe)* | `NoiseAugmentor` class exists in `tea.noise`; needs `tea.mtkd`'s training entry point to actually consume it during a training run. |
+### 1.3–1.5 ASR & annotation workflow
 
-**Caveats:** `NoiseAugmentor`'s original convenience constructors hard-coded two Triton paths (`/scratch/work/galamaa1/my_mtkd/noise/{single,full}_noise.wav`). Replaced with `cfg.noise.augment.noise_path` — confirmed the Table 21 "Retrain" rows used `full_noise.wav` (the ~51-minute pooled collection); `conf/noise/noise.yaml`'s default already points at `data/noise/full_noise.wav` to match.
+After chunking you should have:
 
-## Not yet ported
+- `generated/chunks/*.json` (segment metadata)
+- `generated/annotations/*.csv` (columns: `name`, `duration_sec`, `start`, `end`, `type`)
 
-Confidence estimation (binary/TCP/temperature), features, probes, and
-analysis (classroom evaluation, temporal consistency, noise-distribution
-tables) are still scaffold-only. See each module's `README.md` for its
-specific status.
+First merge the hand-labelled columns:
 
-## Teachers, MTKD, classroom fine-tuning (Sections 2-3, Tables 4-20)
+```bash
+tea merge-annotations
+```
 
-| Item | Recipe | Notes |
-|---|---|---|
-| Teacher checkpoints | `recipes/teachers/train_all.sh` | |
-| MTKD baseline (Tables 4-13) | `recipes/mtkd/train_baseline.sh` | |
-| LOTO fine-tuning configs A-F (Tables 16-20) | `recipes/classroom/finetune_configs.sh` | |
-| Confidence calibration (Table 14) | *(no recipe yet)* | `tea calibrate` command exists and works; add a recipe once a specific checkpoint/session is settled on |
-| Noise-augmented retraining (Table 21 "Retrain" rows) | *(no recipe yet)* | `tea train-mtkd mtkd.noise.type=full mtkd.noise.snr_min=... mtkd.noise.snr_max=...` works; needs `data/noise/full_noise.wav` in place first |
-| Embedding extraction (Section 4.2 probes) | *(no recipe yet)* | `tea extract-embeddings` works; recipe depends on `tea.probes` (next installment) to actually consume the embeddings |
+This adds `gt_label`, `confidence` and `overlap` to the CSVs under
+`paths.annotation_root` (default `generated/annotations`).
 
-**Consolidations made in this installment** (confirmed near-identical
-logic before merging, not silently changed):
-- `train.py` + `train_modified.py` -> one `Trainer.train(augmentor=None)`.
-- `infer.py` + `infer_per_fold.py` + `infer_whole.py` -> one `Inferencer`
-  with `.run()` / `.run_per_teacher()`. `infer.py`'s hard-coded
-  `TEMPERATURE = 1.2972` is now `cfg.mtkd.inference_temperature: null`
-  (opt-in only), per the note already left in that file.
-- `teacher_code.txt`'s dataset loaders/utils were a strict subset of
-  `mtkd_code.txt`'s -- `tea.teachers` is now the one canonical copy of both,
-  `tea.mtkd` imports from it.
+For ASR outputs prefer the pre-computed versions:
 
-**Known gap, resolved:** RIR (room impulse response) augmentation is now
-implemented in `tea.noise.RIRAugmentor`, wired opt-in through
-`tea.classroom.fesc.contaminate_fesc`'s `rir` parameter
-(`classroom.use_rir=true`). Off by default; the default path reproduces
-the original, reported contamination pipeline exactly. Ported from
-`mtkd_code.txt` section 1.21, which also included an alternative,
-exponential-decay-based augmentation-count strategy
-(`compute_augmentation_sizes` in `fesc_contamination2.py`) and a matching
-alternate orchestrator (`finetune_classroom2.py`) -- **neither of those
-two was ported**, since they were presented as an unreported, exploratory
-variant ("other finetuning") and the canonical `cap_multiplier`-based
-sizing in `tea.classroom.fesc.contaminate_fesc` is what matches Tables
-16-20. Flag if you want that alternate sizing strategy added as a
-second, explicitly-optional function alongside the canonical one.
+```bash
+tea apply-asr asr.use_precomputed=true
+```
 
-## Text sentiment (feeds Section 4.2/4.3 handcrafted features)
+If you really need to re-run Whisper, create the dedicated environment from
+`conda-envs/environment_for_asr.yml` and then:
 
-| Item | Recipe | Notes |
-|---|---|---|
-| FI/EN sentiment JSONs | `tea sentiment` (no dedicated recipe script yet, single command) | Moved from `tea.asr` to `tea.features` -- see that module's README |
+```bash
+tea apply-asr asr.use_precomputed=false
+```
+
+---
+
+## 2. Result analysis
+
+### 2.1 Baseline student on the benchmark (Tables 4 / 5)
+
+Before touching the classroom videos, evaluate the frozen MTKD student on the
+held-out benchmark test split (FESC / IEMOCAP / CaFE).  This reproduces the
+numbers reported in Tables 4–5.
+
+```bash
+# Evaluate the Multilingual FI session-6 student (most common checkpoint)
+tea evaluate-mtkd \
+    mtkd.linguality=Multilingual \
+    mtkd.language=FI \
+    mtkd.session=6
+
+# or with an explicit checkpoint
+tea evaluate-mtkd \
+    mtkd.eval_checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth
+```
+
+### 2.1 Predicting the teacher-videos with the baseline model
+
+Run the same frozen student on the classroom chunks and write the prediction
+JSON that all later analysis commands consume:
+
+```bash
+tea infer-mtkd \
+    mtkd.infer.checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth \
+    mtkd.infer.input=generated/chunked_audios \
+    mtkd.infer.output=generated/mtkd_inference/infer_result.json \
+    mtkd.infer.eval=true
+```
+
+(`mtkd.infer.eval=true` also prints a quick UAR/WAR on the classroom data.)
+
+Classroom-level metrics (WAR / UAR / confusion, child-speech & confidence
+breakdowns – report Tables 6–13):
+
+```bash
+tea evaluate-classroom \
+    analysis.mtkd_json=generated/mtkd_inference/infer_result.json \
+    analysis.annotation_dir=generated/annotations
+```
+
+Add the 3-class polarity view if needed:
+
+```bash
+tea evaluate-classroom \
+    analysis.mtkd_json=generated/mtkd_inference/infer_result.json \
+    analysis.three_class=true
+```
+
+### 2.2 Temporal analysis
+
+```bash
+tea temporal \
+    analysis.mtkd_json=generated/mtkd_inference/infer_result.json
+```
+
+### 2.3 Acoustic-by-emotion summaries (duration / loudness / speaking-rate)
+
+```bash
+tea acoustic-by-emotion \
+    analysis.mtkd_json=generated/mtkd_inference/infer_result.json \
+    analysis.audio_root=data/classroom_audio
+```
+
+### 2.4 Confidence calibration – Temperature scaling (Table 14)
+
+Fit a single scalar temperature on the **benchmark** development set:
+
+```bash
+tea calibrate mtkd.use_default_calibrate_ckpt=true
+```
+
+The command prints the optimal `T`.  You can later apply it at inference time:
+
+```bash
+tea infer-mtkd \
+    mtkd.infer.checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth \
+    mtkd.inference_temperature=<T> \
+    mtkd.infer.output=generated/mtkd_inference/infer_result_T.json
+```
+
+---
+
+## 3. Preliminary fine-tuning
+
+To run head-only fine-tuning (make sure to change `use_class_weight`, `use_confidence_weight`, `augment_fesc`
+according to Table 16 in the report):
+
+```bash
+tea finetune-classroom \
+    classroom.base_checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth \
+    classroom.variant=head_only \
+    classroom.use_class_weight=true \
+    classroom.use_confidence_weight=true \
+    classroom.augment_fesc=false \
+    classroom.epochs=5 \
+    classroom.lr=1e-4 \
+    classroom.batch_size=8
+```
+
+To run full fine-tuning (make sure to change `use_class_weight`, `use_confidence_weight`, `augment_fesc`
+according to Table 16 in the report):
+
+```bash
+tea finetune-classroom \
+    classroom.base_checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth \
+    classroom.variant=full \
+    classroom.use_class_weight=true \
+    classroom.use_confidence_weight=true \
+    classroom.augment_fesc=false \
+    classroom.epochs=5 \
+    classroom.lr=2e-5 \
+    classroom.batch_size=8
+```
+
+---
+
+## 4. Further analysis
+
+### 4.1 Noise analysis (Table 21)
+
+First produce one prediction JSON per noise / filtering condition:
+
+```bash
+# 1) for DeepFilterNet 15 dB
+tea denoise \
+    noise.method=deepfilter \
+    noise.deepfilter.atten_lim_db=15 
+
+tea infer-mtkd \
+    mtkd.infer.input=generated/noise/deepfilter/atten_lim_db_15 \
+    mtkd.infer.output=generated/mtkd_inference/infer_result_15dB.json
+```
+
+```bash
+# 2) for DeepFilterNet 0 dB
+tea denoise \
+    noise.method=deepfilter \
+    noise.deepfilter.atten_lim_db=0
+
+tea infer-mtkd \
+    mtkd.infer.input=generated/noise/deepfilter/atten_lim_db_0 \
+    mtkd.infer.output=generated/mtkd_inference/infer_result_0dB.json
+```
+
+```bash
+# 3) for spectral subtraction
+tea denoise noise.method=spectral 
+
+tea infer-mtkd \
+    mtkd.infer.input=generated/noise/spectral \
+    mtkd.infer.output=generated/mtkd_inference/infer_result_spectral.json
+```
+
+For the noise-contaminated retrain, the checkpoints are already available in final_models/mtkd
+
+```bash
+# 4) model retrained with noise in 5-15 dB range
+tea infer-mtkd \
+    mtkd.infer.checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6_5.0_15.0dB.pth \
+    mtkd.infer.output=generated/mtkd_inference/infer_result_5_15.json
+```
+
+```bash
+# 5) model retrained with noise in 10-25 dB range
+tea infer-mtkd \
+    mtkd.infer.checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6_10.0_25.0dB.pth \
+    mtkd.infer.output=generated/mtkd_inference/infer_result_10_25.json
+```
+
+```bash
+# 6) model retrained with noise in 15-30 dB range
+tea infer-mtkd \
+    mtkd.infer.checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6_15.0_30.0dB.pth \
+    mtkd.infer.output=generated/mtkd_inference/infer_result_15_30.json
+```
+
+Then build the distribution table:
+
+```bash
+tea noise-analysis
+```
+
+If any of the six above (also the base inference) are missing they will be missing from the table, so debug from that.
+
+### 4.2 Representation and feature analysis
+
+Extract embeddings (required by the probes):
+
+```bash
+tea extract-embeddings \
+    mtkd.embeddings.checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth \
+    mtkd.embeddings.source=videos \
+    mtkd.embeddings.input_dir=generated/chunked_audios \
+    mtkd.embeddings.output_dir=generated/embeddings
+```
+
+Text-sentiment features:
+
+```bash
+tea sentiment
+```
+
+Feature-fusion (report Table 23):
+
+```bash
+tea probe-feature-fusion \
+    probes.feature_fusion.mtkd_json=generated/mtkd_inference/infer_result.json \
+    probes.feature_fusion.sentiment_fi_json=generated/sentiment/sentiment_fi.json \
+    probes.feature_fusion.embedding_root=generated/embeddings
+```
+
+### 4.3 Confidence estimation (reliability nets)
+
+```bash
+tea confidence \
+    confidence.mtkd_json=generated/mtkd_inference/infer_result.json \
+    confidence.sentiment_fi_json=generated/sentiment/sentiment_fi.json \
+    confidence.methods=[binary,tcp,temperature]
+```
+
+### 4.4 Temporal visualisation
+
+Already covered by the commands in §2.2:
+
+```bash
+tea temporal   analysis.mtkd_json=generated/mtkd_inference/infer_result.json
+tea emotion-arc analysis.mtkd_json=generated/mtkd_inference/infer_result.json
+```
+
+---
+
+## Child-speech probe (used in §2.1.3 and §4)
+
+```bash
+tea probe-child-speech \
+    probes.child_speech.embedding_root=generated/embeddings \
+    probes.annotation_dir=generated/annotations
+```
