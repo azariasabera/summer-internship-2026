@@ -1,54 +1,45 @@
 # `tea.classroom`
 
-Leave-one-teacher-out (LOTO) fine-tuning of an MTKD student on annotated
-classroom recordings, with optional FESC contamination for the minority
-classes (sadness/anger). Report Sections 3 and Tables 16-20.
+Leave-one-teacher-out (LOTO) fine-tuning of an MTKD student on the classroom recordings, including FESC augmentation.
 
-## Public API
+## Modules
 
-```python
-from tea.classroom import LOTOFineTuner
+| File | Role |
+|------|------|
+| `finetune.py` | LOTO fine-tuning loop (`finetune_classroom_cli`). Loads a pre-trained MTKD checkpoint, freezes or unfreezes layers according to the chosen config, applies weighted CE + optional FESC, and writes per-fold checkpoints. |
+| `data.py` | Classroom dataset construction, fold splitting, and FESC contamination logic. |
+| `fesc.py` | Feature-space / acoustic contamination helpers used by the fine-tuning configs. |
+| `utils.py` | Weighting and fold utilities shared with the rest of the package. |
+| `__init__.py` | Exposes the CLI entry point. |
 
-tuner = LOTOFineTuner(cfg)
+## Command
 
-# Named report configuration (A-F, see conf/classroom/classroom.yaml)
-results = tuner.run_config("E", base_checkpoint="final_models/mtkd/MTKD_Multilingual_FI_S8.pth", variant="full")
-
-# Or set the three switches individually
-results = tuner.run_all_folds(
-    base_checkpoint="...", variant="full",
-    use_class_weight=True, use_confidence_weight=False, augment_fesc=True,
-)
-print(results["finetuned_pooled"])  # pooled out-of-fold UAR/WAR/confusion (Tables 17-20)
-```
+- `tea finetune-classroom` – run one or more LOTO fine-tuning configurations (normally on a GPU cluster).
 
 ## CLI
 
 ```bash
-# Named config
-tea finetune-classroom-loto classroom.run.base_checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S8.pth classroom.run.variant=full classroom.run.config=E
+tea finetune-classroom \
+    classroom.use_class_weight=true \
+    classroom.use_confidence_weight=true \
+    classroom.augment_fesc=false \
+    classroom.variant=head_only \
+    classroom.base_checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth \
+    classroom.epochs=5 \
+    classroom.lr=1e-4 \
+    classroom.batch_size=8
 
-# Or explicit switches
-tea finetune-classroom-loto classroom.run.base_checkpoint=... classroom.run.variant=head_only classroom.run.use_class_weight=true
+tea finetune-classroom \
+    classroom.use_class_weight=false \
+    classroom.use_confidence_weight=false \
+    classroom.augment_fesc=true \
+    classroom.variant=full \
+    classroom.base_checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth \
+    classroom.epochs=5 \
+    classroom.lr=2e-5 \
+    classroom.batch_size=8 \
 ```
 
-## Submodules
+**Note**: RIR augmentation can be applied during FESC noise contamination, but it is not currently supported in the pipeline.
 
-| Module | Ported from |
-|---|---|
-| `data.py` | `classroom_data.py` -- LOTO fold building, CSV loading |
-| `fesc.py` | `fesc_contamination.py` -- noise-pool composition, SNR estimation, composite noise mixing |
-| `finetune.py` | `finetune_classroom.py` -- the orchestrator: fold loop -> optional contamination -> weighting -> fine-tune -> pooled OOF report |
-
-## Status
-
-Fully ported. Verified: imports cleanly, `tea finetune-classroom-loto`
-reaches real code end-to-end (fails only on missing classroom audio/CSVs
-in this sandbox, not a wiring bug).
-
-## Notes
-
-- Internal validation split (`classroom.internal_val_frac`) is OFF by
-  default (fixed-epoch training, evaluate on the fold's real test set only
-  at the end). Set it > 0 only if you want early stopping and are comfortable with the
-  video-grouped train/val split this carves out of TRAIN only.
+Important configuration lives in `conf/classroom/classroom.yaml`. The six experimental configurations reported are selected by setting `classroom.use_classweight`, `classroom.use_confidence_weight` and `classroom.augment_fesc` true/false.
