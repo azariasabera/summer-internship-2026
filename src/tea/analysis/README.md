@@ -1,40 +1,38 @@
 # `tea.analysis`
 
-Post-hoc analysis of MTKD predictions on the classroom recordings
-(report Sections 2.1-2.2, 4.1, 4.4).
+Post-hoc evaluation, temporal analysis, noise-condition tables and acoustic-by-emotion summaries of classroom predictions.
 
-## Public API
+## Modules
 
-```python
-from tea.analysis import join_predictions, evaluate_per_video_and_overall, temporal_consistency, compare_conditions
+| File | Role |
+|------|------|
+| `classroom.py` | Joins MTKD prediction JSONs onto annotation CSVs, computes WAR / UAR / F1 / confusion matrices (overall and per-video), plus accuracy broken down by child-speech presence and annotation confidence. Exposes `evaluate_classroom_cli`. |
+| `temporal.py` | Temporal-consistency scores, moving-average / Gaussian smoothing, and emotion-arc plotting. Exposes `temporal_cli` and `emotion_arc_per_video`. |
+| `noise.py` | Builds class-distribution tables under different noise / denoising conditions. Exposes `noise_analysis_cli`. |
+| `acoustic_by_emotion.py` | Adds loudness / speaking-rate columns and produces box-plots / summary tables stratified by predicted emotion. Exposes `acoustic_by_emotion_cli`. |
+| `__init__.py` | Re-exports the public functions and CLI entry points. |
 
-df = join_predictions("generated/predictions/MTKD_run.json", "generated/annotations")
-per_video, overall = evaluate_per_video_and_overall(df)  # report Tables 6-8
-print(overall["war"], overall["uar"])
+## Commands
 
-consistency = temporal_consistency(df.loc[df.video == "1B2251", "gt_label"].tolist())  # report Eq. 2.1
-
-table21 = compare_conditions({"Original": "...", "DeepFilterNet 15 dB": "...", "Retrain 15-30 dB": "..."})
-```
+- `tea evaluate-classroom` – overall & per-video metrics + child-speech / confidence breakdowns.
+- `tea temporal` – temporal consistency scores and smoothed emotion arcs.
+- `tea emotion-arc` – per-video emotion-arc plots.
+- `tea noise-analysis` – class-distribution tables for noise / denoising conditions.
+- `tea acoustic-by-emotion` – acoustic feature summaries stratified by predicted emotion.
 
 ## CLI
 
 ```bash
-tea evaluate-classroom analysis.mtkd_json=generated/predictions/MTKD_run.json
-tea acoustic-by-emotion analysis.mtkd_json=... analysis.audio_root=data/classroom_audio
-tea temporal analysis.mtkd_json=...
-tea noise-analysis +analysis.noise_conditions.Original=... +analysis.noise_conditions."DeepFilterNet_15dB"=...
+tea evaluate-classroom
+tea evaluate-classroom analysis.mtkd_json=generated/predictions/MTKD_run.json \
+                       paths.annotation_root=generated/annotations
+
+tea temporal analysis.mtkd_json=generated/predictions/MTKD_run.json
+tea emotion-arc analysis.mtkd_json=generated/predictions/MTKD_run.json
+
+tea noise-analysis
+tea acoustic-by-emotion analysis.mtkd_json=generated/predictions/MTKD_run.json \
+                        analysis.audio_root=data/classroom_audio
 ```
 
-## Submodules
-
-| Module | Ported from |
-|---|---|
-| `classroom.py` | `checking_pred.ipynb` -- the native 4-class and 3-class-sentiment evaluation blocks were duplicated in the notebook, now one `evaluate_predictions` function called twice |
-| `acoustic_by_emotion.py` | `per_video.ipynb` (duration/loudness/speaking-rate cells, report Figure 8) |
-| `temporal.py` | `per_video.ipynb` (stability cells) + `temporal.txt` + `temporal_analysis.txt` -- see below |
-| `noise.py` | `noise_analysis.txt` + `noise.ipynb` (7 near-duplicate evaluate-and-tabulate blocks, one per Table 21 row, consolidated into one `class_distribution` function) |
-
-## Status
-
-Fully ported.
+Important configuration lives in `conf/analysis/analysis.yaml` (prediction JSON path, excluded videos, smoothing windows, noise-condition map, etc.).
