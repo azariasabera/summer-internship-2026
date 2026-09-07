@@ -12,6 +12,7 @@ from omegaconf import DictConfig
 from tea.utils.constants import CLASS_ORDER
 from tea.utils.io import load_nested_json
 from tea.utils.logging import get_logger
+from tea.utils.paths import resolve
 
 logger = get_logger(__name__)
 
@@ -66,23 +67,34 @@ def compare_conditions(
     annotation_root: str | Path,
     class_order: list[str] = CLASS_ORDER,
 ) -> pd.DataFrame:
-    """Build report Table 21: one row per noise condition, one column per class.
+    """Compare predicted class distributions across noise conditions.
 
     Parameters
     ----------
     condition_json_paths:
-        `{condition_name: prediction_json_path}`, e.g.
-        `{"Original": ..., "DeepFilterNet 15 dB": ..., "Retrain 15-30 dB": ...}`.
+        Mapping from condition name to prediction JSON path.
     annotation_root:
-        Directory of per-video annotation CSVs, used to restrict the
-        distribution to speech chunks only.
+        Directory containing per-video annotation CSVs. Only speech chunks
+        are included in the distribution.
     class_order:
-        Which classes to report (and their order).
+        Classes to report and their column order.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per noise condition and one column per class.
     """
     rows = []
     for condition, path in condition_json_paths.items():
+        path = resolve(path)
+
+        if not path.exists():
+            logger.warning("Couldn't find prediction file: %s", path)
+            continue
+
         dist = class_distribution(path, annotation_root, class_order)
         rows.append({"condition": condition, **dist})
+
     df = pd.DataFrame(rows).set_index("condition")
     logger.info("\n%s", (df * 100).round(1).astype(str) + "%")
     return df
@@ -138,7 +150,7 @@ def noise_analysis_cli(cfg: DictConfig) -> int:
     """
     ac = cfg.analysis
     if not ac.get("noise_conditions"):
-        logger.error("Set analysis.noise_conditions (mapping of condition name -> prediction json path)")
+        logger.error(   "No noise conditions found. Refer to reproducibility.md section 4.1, Noise Analysis.")
         return 2
 
     table = compare_conditions(dict(ac.noise_conditions), ac.annotation_dir)
