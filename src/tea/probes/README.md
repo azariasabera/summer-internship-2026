@@ -1,43 +1,30 @@
 # `tea.probes`
 
-Representation probes on top of a frozen MTKD student (report Sections
-4.2-4.3).
+Lightweight probes that investigate the model representations: child-speech detection and feature-fusion tables.
 
-## Public API
+## Modules
 
-```python
-from tea.probes import ChildSpeechProbe, load_dataset, get_feature_groups, run_experiment
+| File | Role |
+|------|------|
+| `child_speech.py` | Logistic (or linear) probe that predicts the presence of child speech from pooled WavLM embeddings. Exposes `probe_child_speech_cli`. |
+| `feature_fusion.py` | Builds and evaluates tables that fuse hand-crafted acoustic / sentiment features with the embeddings. Exposes `probe_feature_fusion_cli`. |
+| `fusion_utils.py` | Shared helpers for feature concatenation, scaling and simple classifiers. |
+| `__init__.py` | Re-exports the CLI entry points. |
 
-df = load_dataset(embedding_root="generated/embeddings", annotation_root="generated/annotations")
-probe = ChildSpeechProbe(n_splits=5)
-fold_df, overall = probe.run(df)  # report Section 4.2, WAR 70.65% / UAR 69.23%
+## Commands
 
-from tea.features import build_master_table
-mt_df, mtkd_classes, _ = build_master_table(..., embedding_root="generated/embeddings")
-groups = get_feature_groups(mt_df, mtkd_cols=[f"mtkd_{c}" for c in mtkd_classes])
-result_df = run_experiment(mt_df, groups, label_col="_label_id", teacher_col="teacher_id", n_classes=4, base="softmax")
-```
+- `tea probe-child-speech` – train / evaluate a child-speech probe on extracted embeddings.
+- `tea probe-feature-fusion` – produce feature-fusion performance tables.
 
 ## CLI
 
 ```bash
 tea probe-child-speech
-tea probe-feature-fusion probes.feature_fusion.mtkd_json=... probes.feature_fusion.sentiment_fi_json=...
+tea probe-child-speech probes.embeddings=generated/embeddings \
+                       probes.annotation_dir=generated/annotations
+
+tea probe-feature-fusion # runs both `softmax` and `embedding` as bases
+tea probe-feature-fusion probes.base=softmax # or probes.base=embedding
 ```
 
-## Submodules
-
-| Module | Ported from |
-|---|---|
-| `child_speech.py` | `probe_related.txt` |
-| `feature_fusion.py` | `probe_related2.txt` -- only the unique experiment-running logic (`get_feature_groups`/`get_feature_combinations`/`run_experiment`); the data-loading it also contained (confirmed pasted twice, reformatted, within that one file) is `tea.features.build_master_table` |
-
-## Status
-
-Fully ported.
-
-## Notes
-
-- `feature_fusion.py`'s `base="embedding"` condition reproduces the
-  report's finding that the raw 768-d embedding performs WORSE as a base
-  representation than the 4-value softmax alone (Table 23).
+Important configuration lives in `conf/probes/probes.yaml`.
