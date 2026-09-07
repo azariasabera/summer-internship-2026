@@ -6,12 +6,10 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from pathlib import Path
-import subprocess
 
 from hydra import compose, initialize_config_dir
 from omegaconf import DictConfig
 
-from tea.utils.logging import git_commit_hash
 
 def find_project_root() -> Path:
     """Find the project root directory by locating the top-level `conf/` directory.
@@ -29,11 +27,8 @@ def find_project_root() -> Path:
 
     Returns:
         Path: The project root directory containing `conf/`.
-
-    Raises:
-        RuntimeError: If no parent directory contains a `conf/` directory.
     """
-    current: Path = Path(__file__).resolve()
+    current = Path(__file__).resolve()
 
     for parent in current.parents:
         if (parent / "conf").is_dir():
@@ -41,31 +36,22 @@ def find_project_root() -> Path:
 
     raise RuntimeError("Could not find project root containing conf/")
 
+
 def get_config_path() -> Path:
-    """Return the path to the project's Hydra configuration directory."""
-    return find_project_root() / "conf" # or Path(__file__).resolve().parents[3] / "conf"
+    """Return the path to the project's Hydra `conf/` directory."""
+    return find_project_root() / "conf"
+
 
 def load_config(overrides: Sequence[str]) -> DictConfig:
-    """Load the project Hydra configuration.
+    """Load the Hydra configuration and apply the given overrides.
 
-    Parameters
-    ----------
-    overrides:
-        Hydra-style configuration overrides, for example `["vad.atten_lim_db=15"]`.
-
-    Returns
-    -------
-    DictConfig
-        Composed Hydra configuration.
+    For example:
+        ["mtkd.language=FI", "mtkd.session=8"]
     """
     config_path = get_config_path()
-    git_commit = git_commit_hash() # `git show commit_hash`` to get the commit message
-
-    print(f"[tea] Git commit: {git_commit}")
-    print(f"[tea] Config path: {config_path}")
 
     with initialize_config_dir(version_base=None, config_dir=str(config_path)):
-        cfg: DictConfig = compose(
+        cfg = compose(
             config_name="config",
             overrides=list(overrides),
         )
