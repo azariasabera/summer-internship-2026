@@ -6,10 +6,13 @@ set -euo pipefail
 
 mkdir -p data/classroom_audio
 
-find video_dir \
+VIDEO_DIR="video_dir"
+OUTPUT_DIR="data/classroom_audio"
+
+find "$VIDEO_DIR" \
   -type f \( -name '*.MP4' -o -name '*.MTS' \) -print0 |
 while IFS= read -r -d '' f; do
-  out="data/classroom_audio/$(basename "${f%.*}").wav"
+  out="$OUTPUT_DIR/$(basename "${f%.*}").wav"
 
   echo "Converting: $f → $out"
 
