@@ -111,6 +111,8 @@ def evaluate_mtkd_cli(cfg: DictConfig) -> int:
 
     test_loader = DataLoader(encoded, batch_size=cfg.mtkd.hyperparams.batch_size, collate_fn=collate_fn)
 
+    device = torch.device(cfg.device if torch.cuda.is_available() or cfg.device == "cpu" else "cpu")
+
     model, epoch = load_model(cfg, ckpt_path, device)
     model.eval()
 
