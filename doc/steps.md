@@ -20,6 +20,12 @@ with all parameters (those configurations that affect the chunking):
 tea chunk paths.audio_root=somewhere vad.threshold=0.7
 ```
 
+if the goal is only to get the chunk audios:
+
+```bash
+tea chunk vad.save_audios=true vad.save_json_data=false
+```
+
 1.2. Adding my already-created annotation labels into each chunk in the csv
 
 ```bash
@@ -72,3 +78,131 @@ tea apply-asr asr.use_precomputed=true
 
 This is my preferred option when the original transcription and translation results are already available and the goal is to reproduce the downstream analyses exactly without rerunning ASR.
 
+2. Extract noise
+
+To get the metadata for the noise pool:
+
+```bash
+tea extract-noise
+```
+
+To also save randomlly concatenated single WAV of all noises in the pool:
+
+```bash
+tea extract-noise noise.extraction.save_audio=true
+```
+
+3. Denoise
+
+```bash
+tea denoise noise.method=deepfilter noise.deepfilter.atten_lim_db=0
+```
+
+```bash
+tea denoise noise.method=spectral
+```
+
+4. Eval
+
+```bash
+tea evaluate-mtkd mtkd.linguality=Multilingual mtkd.language=FI mtkd.session=6
+```
+
+5. Infer
+
+```bash
+tea infer-mtkd 
+```
+
+```bash
+tea infer-mtkd mtkd.infer.per_teacher=true 
+```
+
+```bash
+tea infer-mtkd \
+    mtkd.infer.input=path_to_wavs \
+    mtkd.infer.checkpoint=path_to_ckpt \
+    mtkd.infer.save_output=true \
+    mtkd.infer.output=where_to_save \
+    mtkd.infer.eval=true \
+    mtkd.infer.annotations_dir=paths_to_csvs_that have_gt_label \
+    mtkd.infer.per_teacher=false \
+    mtkd.infer.batch_size=8
+```
+
+6. Train
+
+```bash
+tea train-mtkd \
+    mtkd.linguality=Multilingual \
+    mtkd.language=FI \
+    mtkd.session=6 \
+    mtkd.epochs=20 \
+    mtkd.lr=2e-5 \
+    mtkd.batch_size=16
+```
+
+```bash
+tea train-mtkd \
+    mtkd.linguality=Multilingual \
+    mtkd.language=FI \
+    mtkd.session=6 \
+    mtkd.epochs=20 \
+    mtkd.lr=2e-5 \
+    mtkd.batch_size=16 \
+    mtkd.noise.use=true \
+    noise.augment.noise_path=use_default_after_running_extract_command \
+    mtkd.noise.contam_prob=0.5 \
+    mtkd.noise.snr_min=15 \
+    mtkd.noise.snr_max=30 
+```
+
+7. Calibrate
+
+```bash
+tea calibrate \
+    mtkd.linguality=Multilingual \
+    mtkd.language=FI \
+    mtkd.session=6
+```
+
+8. Embeddings
+
+```bash
+tea extract-embeddings \
+    mtkd.embeddings.source=videos \
+    mtkd.embeddings.input_dir=generated/chunked_audios \
+    mtkd.embeddings.annotations_dir=generated/annotations \
+    mtkd.embeddings.output_dir=generated/embeddings \
+    mtkd.embeddings.checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6_.pth
+```
+
+```bash
+tea extract-embeddings \
+    mtkd.embeddings.source=fesc \
+    mtkd.embeddings.sessions=all \
+    mtkd.embeddings.splits=[train,dev,test] \
+    mtkd.embeddings.layers=[3,6,9,12]
+```
+
+9. Finetune
+
+```bash
+tea finetune-classroom \
+    classroom.run.config=B \
+    classroom.run.variant=full \
+    classroom.run.base_checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth \
+    classroom.epochs=5 \
+    classroom.lr=2e-5 \
+    classroom.batch_size=8
+```
+
+```bash
+tea finetune-classroom \
+    classroom.run.config=B \
+    classroom.run.variant=head_only \
+    classroom.run.base_checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth \
+    classroom.epochs=5 \
+    classroom.lr=1e-4 \
+    classroom.batch_size=8
+```
