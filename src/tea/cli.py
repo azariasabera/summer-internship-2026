@@ -41,7 +41,7 @@ _STAGE1: Final[list[tuple[COMMAND, MODULE, CLI_FUNCTION, DESCRIPTION]]] = [
     ("merge-annotations", "tea.utils.io", "merge_annotations", "Copy gt_label / confidence / overlap from prepared CSVs into generated annotations"),
     ("apply-asr", "tea.asr", "transcribe_annotation_root", "Whisper transcribe + translate on speech chunks"),
     ("denoise", "tea.noise", "denoise", "DeepFilterNet or spectral subtraction (optional)"),
-    ("extract-noise", "tea.noise", "extract_noise", "Build non-speech noise pool from annotated videos"),
+    ("extract-noise", "tea.noise.extraction", "extract_noise", "Build non-speech noise pool from annotated videos"),
     ("sentiment", "tea.features.sentiment", "sentiment_cli", "FI/EN text-sentiment probabilities from transcripts"),
 ]
 
