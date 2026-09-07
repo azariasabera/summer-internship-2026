@@ -1,60 +1,75 @@
 # `tea.mtkd`
 
-Multilingual Teacher Knowledge Distillation (MTKD) student: train,
-evaluate, infer, calibrate, extract embeddings.
+Multilingual Teacher Knowledge Distillation (MTKD) student model: training, evaluation, calibration, inference and embedding extraction.
 
-## Public API
+## Modules
 
-```python
-from tea.mtkd import Trainer, Inferencer, Calibrator, EmbeddingExtractor, evaluate_student
+| File | Role |
+|------|------|
+| `model.py` | Student architecture (Wav2Vec2 encoder + classification head). |
+| `losses.py` | Distillation loss (KL + CE) with temperature. |
+| `frozen_teachers.py` | Loads and freezes the monolingual teacher checkpoints used as distillation targets. |
+| `data.py` | Multi-language DataLoaders. |
+| `engine.py` | Train / validate step helpers. |
+| `train.py` | Full training entry point (`train_mtkd_cli`). |
+| `evaluate.py` | Checkpoint evaluation on held-out benchmark splits (`evaluate_mtkd_cli`). |
+| `calibrate.py` | Temperature calibration of a trained student (`calibrate_cli`). |
+| `infer.py` | Batch inference that writes `pred_label` / probability columns (or a nested JSON) for classroom chunks (`infer_mtkd_cli`). |
+| `embeddings.py` | Extracts pooled Wav2Vec2 embeddings for later probes (`extract_embeddings_cli`). |
+| `utils.py` | Shared helpers (checkpoint loading, weighting, etc.). |
 
-trainer = Trainer(cfg)
-ckpt_path = trainer.train(linguality="Multilingual", language="FI", session=8)
+## Commands
 
-inferencer = Inferencer(cfg, checkpoint=ckpt_path)
-results = inferencer.run("path/to/video_folder")  # or a single file
-Inferencer.save_grouped(results, "generated/predictions/MTKD_run.json")
-
-results = evaluate_student(cfg, linguality="Multilingual", language="FI", session=8)  # Tables 4/5
-
-Calibrator(cfg).run(linguality="Multilingual", language="FI", session=8)  # Table 14
-
-extractor = EmbeddingExtractor(cfg, checkpoint=ckpt_path)
-extractor.process_video_folder("path/to/video_folder", output_dir="generated/embeddings")
-```
+- `tea train-mtkd` – train a multilingual student (GPU / Triton).
+- `tea evaluate-mtkd` – evaluate a student checkpoint on benchmark splits.
+- `tea calibrate` – fit temperature (and optional bias) on a validation set.
+- `tea infer-mtkd` – run a frozen student on classroom annotation CSVs / audio and write predictions.
+- `tea extract-embeddings` – dump pooled embeddings for the probe modules.
 
 ## CLI
 
 ```bash
-tea train-mtkd mtkd.linguality=Multilingual mtkd.language=FI mtkd.session=8
-tea train-mtkd mtkd.linguality=Multilingual mtkd.language=FI mtkd.session=8 mtkd.mode=finetune
-tea train-mtkd mtkd.linguality=Multilingual mtkd.language=FI mtkd.session=8 mtkd.noise.type=full mtkd.noise.snr_min=15 mtkd.noise.snr_max=30
-tea infer-mtkd mtkd.infer.input=path/to/videos mtkd.infer.output=generated/predictions/run.json
-tea evaluate-mtkd mtkd.linguality=Multilingual mtkd.language=FI mtkd.session=8
-tea calibrate mtkd.linguality=Multilingual mtkd.language=FI mtkd.session=8
-tea extract-embeddings mtkd.embeddings.source=videos mtkd.embeddings.input_dir=path/to/videos
+# Training
+tea train-mtkd # this will not work since `linguality`, `language`, and `session` have to be specified.
+tea train-mtkd \
+    mtkd.linguality=Multilingual \
+    mtkd.language=FI \
+    mtkd.session=6 \
+    mtkd.batch_size=16 \
+    mtkd.lr=2e-5 \
+    mtkd.epochs=20
+
+# Training with additive noise
+tea train-mtkd \
+    mtkd.linguality=Multilingual \
+    mtkd.language=FI \
+    mtkd.session=6 \
+    mtkd.batch_size=16 \
+    mtkd.lr=2e-5 \
+    mtkd.epochs=20 \
+    mtkd.noise.use=true \
+    mtkd.noise.contam_prob=0.5 \
+    mtkd.noise.snr_min=10 \
+    mtkd.noise.snr_max=30
+
+# Evaluation & calibration
+tea evaluate-mtkd mtkd.linguality=Multilingual mtkd.language=FI mtkd.session=6 # if there is a model trained with that configuration in generated/checkpoints
+tea evaluate-mtkd mtkd.checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth # or
+tea evaluate-mtkd mtkd.use_defualt_eval_ckpt=true # or
+
+tea calibrate mtkd.checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth
+
+# Inference on classroom data (uses existing checkpoint)
+tea infer-mtkd
+tea infer-mtkd mtkd.infer.checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth \
+               mtkd.infer.annotations_dir=generated/annotations \
+               mtkd.infer.output=generated/predictions/MTKD_run.json \
+               mtkd.infer.batch_size=16
+
+# Embeddings for probes
+tea extract-embeddings \
+    mtkd.embeddings.source=video \
+    mtkd.embeddings.checkpoint=final_models/mtkd/MTKD_Multilingual_FI_S6.pth
 ```
 
-## Submodules
-
-| Module | Ported from | Notes |
-|---|---|---|
-| `model.py` | `model.py` | |
-| `losses.py` | `losses.py` | `KLDivLoss(reduction="mean")`, temperature, lambda_param **kept exactly unchanged** |
-| `frozen_teachers.py` | `teachers.py` | named to avoid clashing with top-level `tea.teachers` |
-| `data.py` | `data.py` | single-language loaders live in `tea.teachers`, not here |
-| `engine.py` | `engine.py` | |
-| `utils.py` | `utils.py` | shared with `tea.teachers`; also holds classroom-only weighting helpers used by `tea.classroom` |
-| `train.py` | `train.py` + `train_modified.py` | merged: noise augmentation is now `augmentor=None` by default, not a separate script |
-| `infer.py` | `infer.py` + `infer_per_fold.py` + `infer_whole.py` | merged into one `Inferencer`; inference-time temperature is optional (`None` by default), was previously hard-coded to `1.2972` |
-| `evaluate.py` | `evaluate.py` | teacher-free test-split evaluation (Tables 4/5) |
-| `calibrate.py` | `calibrate.py` | Table 14 |
-| `embeddings.py` | `extract_embeddings.py` | |
-
-## Notes
-
-- All hyperparameters (temperature, lambda_param, cosine_temp, LR, batch
-  size, teacher checkpoint paths) live in `conf/mtkd/mtkd.yaml`.
-- `tea.classroom` depends on this package for `model.py` (checkpoint
-  loading) and `utils.py` (weighting helpers). It is fine-tuning an
-  MTKD-trained checkpoint, not a separate model architecture.
+Important configuration lives in `conf/mtkd/mtkd.yaml`. Checkpoint paths, temperature, class order and noise-augmentation ranges are all controlled from there (or via Hydra overrides).
