@@ -41,7 +41,7 @@ student_ckpt_dir: ${paths.student_ckpt_dir}
 checkpoint_save_dir: ${paths.ckpt_save_dir}/mtkd
 
 eval_checkpoint: null # ${mtkd.default_student_checkpoint}
-use_defualt_eval_ckpt: false # If true, ignore eval_checkpoint and use default_student_checkpoint instead
+use_default_eval_ckpt: false # If true, ignore eval_checkpoint and use default_student_checkpoint instead
 
 calibrate_checkpoint: null # ${mtkd.default_student_checkpoint}
 use_default_calibrate_ckpt: false # If true, ignore calibrate_checkpoint and use default_student_checkpoint instead
