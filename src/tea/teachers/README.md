@@ -1,36 +1,26 @@
 # `tea.teachers`
 
-Monolingual fine-tuned teachers (EN / FI / FR) used by MTKD.
+Monolingual teacher fine-tuning (used as the teacher models inside MTKD).
 
-## Public API
+## Modules
 
-```python
-from tea.teachers import TeacherTrainer, LOADERS
+| File | Role |
+|------|------|
+| `trainer.py` | Training loop for a single-language Wav2Vec2 / WavLM teacher. Expects a Hydra config; writes checkpoints under the configured run directory. |
+| `data.py` | Dataset and DataLoader construction for the monolingual teacher corpora. |
+| `metrics.py` | WAR / UAR / confusion helpers used during validation. |
+| `__init__.py` | Exposes the CLI entry point `train_teacher(cfg)`. |
 
-trainer = TeacherTrainer(cfg)
-ckpt_path = trainer.train("FI", session=6)
-```
+## Command
 
-`LOADERS = {"EN": iemocap, "FI": fesc, "FR": cafe}` -- the canonical
-single-language dataset loaders. `tea.mtkd.data` imports these directly
-rather than redefining them (the original dump had them duplicated
-between `teacher_code.txt` and `mtkd_code.txt`).
+- `tea train-teacher` – fine-tune a monolingual teacher on the configured language/session (normally run on a GPU cluster).
 
 ## CLI
 
 ```bash
+tea train-teacher
 tea train-teacher teachers.language=FI teachers.session=6
+tea train-teacher teachers.hyperparams.batch_size=16
 ```
 
-## Status
-
-Dataset loaders (`iemocap`/`fesc`/`cafe`) and `TeacherTrainer` (checkpoint-resumable,
-early-stopping-on-dev-UAR training) are implemented and CLI-wired.
-
-## Notes
-
-- Checkpoint naming: `<checkpoint_root>/teachers/FT_Monolingual_<LANG>_S<SESSION>.pth`.
-- `conf/teachers/teachers.yaml` holds hyperparameters, dataset session maps,
-  and the old-path-prefix strings used to rewrite raw json split files onto
-  `paths.datasets_root`. Update `*_old_prefix`/`*_old_root` only if you have
-  new raw split files pointing elsewhere.
+Important configuration lives in `conf/teachers/teachers.yaml`. Checkpoints are written under `generated/checkpoints/teachers` if not explicitly changed using `teachers.checkpoint_save_dir=new-path`.
